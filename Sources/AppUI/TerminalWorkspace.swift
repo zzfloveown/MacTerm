@@ -1,6 +1,8 @@
+import CoreTransferable
 import Domain
 import SwiftUI
 import TerminalCore
+import UniformTypeIdentifiers
 
 struct TerminalSession: Identifiable {
     var id = UUID()
@@ -9,6 +11,7 @@ struct TerminalSession: Identifiable {
     var command: [String] = []
     var title: String?
     var exitStatus: String?
+    var attempt = UUID()
 }
 
 enum SplitMode: String, CaseIterable {
@@ -36,6 +39,16 @@ struct TerminalWorkspace: View {
                                         .help(item.exitStatus ?? "SSH 终端")
                                     Button("关闭标签", systemImage: "xmark") { close(item.id) }.labelStyle(.iconOnly)
                                 }.buttonStyle(.borderless)
+                                    .draggable(TerminalTabDrag(id: item.id))
+                                    .dropDestination(for: TerminalTabDrag.self) { values, _ in
+                                        guard let source = values.first?.id,
+                                              let from = sessions.firstIndex(where: { $0.id == source }),
+                                              let to = sessions.firstIndex(where: { $0.id == item.id }),
+                                              from != to else { return false }
+                                        let tab = sessions.remove(at: from)
+                                        sessions.insert(tab, at: to)
+                                        return true
+                                    }
                             }
                         }
                     }
@@ -44,9 +57,8 @@ struct TerminalWorkspace: View {
                     }.labelsHidden().fixedSize()
                     Button("重新连接", systemImage: "arrow.clockwise") {
                         if let index = sessions.firstIndex(where: { $0.id == current }) {
-                            sessions[index].id = UUID()
+                            sessions[index].attempt = UUID()
                             sessions[index].exitStatus = nil
-                            current = sessions[index].id
                         }
                     }.labelStyle(.iconOnly)
                 }.padding(8)
@@ -63,13 +75,14 @@ struct TerminalWorkspace: View {
                             Group {
                                 if let host = item.host,
                                    let terminal = try? SSHTerminal(host: host, fontSize: fontSize, command: item.command,
-                                                                  onExit: { onExit(item.id, code: $0) }) {
+                                                                  onExit: { onExit(item.id, attempt: item.attempt, code: $0) }) {
                                     terminal
                                 } else if let executable = item.executable {
                                     SSHTerminal(executable: executable, arguments: item.command, fontSize: fontSize,
-                                                onExit: { onExit(item.id, code: $0) })
+                                                onExit: { onExit(item.id, attempt: item.attempt, code: $0) })
                                 } else { Text("终端配置无效") }
                             }
+                            .id(item.attempt)
                             .frame(width: width, height: height)
                             .offset(x: item.id == second && split == .horizontal ? width : 0,
                                     y: item.id == second && split == .vertical ? height : 0)
@@ -83,8 +96,8 @@ struct TerminalWorkspace: View {
         }
     }
 
-    private func onExit(_ id: UUID, code: Int32?) {
-        if let index = sessions.firstIndex(where: { $0.id == id }) {
+    private func onExit(_ id: UUID, attempt: UUID, code: Int32?) {
+        if let index = sessions.firstIndex(where: { $0.id == id && $0.attempt == attempt }) {
             sessions[index].exitStatus = code.map { "会话已断开（\($0)）" } ?? "会话已断开"
         }
     }
@@ -92,5 +105,13 @@ struct TerminalWorkspace: View {
     private func close(_ id: UUID) {
         sessions.removeAll { $0.id == id }
         if current == id { current = sessions.last?.id }
+    }
+}
+
+private struct TerminalTabDrag: Codable, Transferable {
+    let id: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .init(exportedAs: "com.macterm.app.terminal-tab"))
     }
 }

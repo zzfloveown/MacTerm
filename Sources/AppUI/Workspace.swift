@@ -39,6 +39,7 @@ public struct Workspace: View {
     @State private var sessions: [TerminalSession] = []
     @State private var current: UUID?
     @State private var split: SplitMode = .none
+    @SceneStorage("recentSSHHosts") private var recentSSHHosts = ""
     @AppStorage("terminalFontSize") private var fontSize = 13.0
 
     public init(store: Store, transfers: TransferQueue, monitors: MonitorRegistry) {
@@ -102,6 +103,10 @@ public struct Workspace: View {
             }
         }
         .task { await refresh(); await transfers.load() }
+        .onChange(of: sessions.map(\.id)) { _, _ in
+            let recent = sessions.compactMap { item in item.command.isEmpty ? item.host?.id.uuidString : nil }
+            recentSSHHosts = recent.joined(separator: ",")
+        }
         .background {
             SSHImportView(presenting: $importing, existing: hosts) { imported in
                 try await store.save(imported)
@@ -125,6 +130,9 @@ public struct Workspace: View {
         switch section ?? .dashboard {
         case .dashboard:
             List {
+                if sessions.isEmpty && !restorableHosts.isEmpty {
+                    Button("重新打开上次 SSH 标签") { restoreTerminals() }
+                }
                 ForEach(hosts) { item in
                     HStack {
                         VStack(alignment: .leading) {
@@ -177,6 +185,20 @@ public struct Workspace: View {
 
     private var chooseHost: some View {
         ContentUnavailableView("请在侧边栏选择服务器", systemImage: "server.rack")
+    }
+
+    private var restorableHosts: [SSHHost] {
+        recentSSHHosts.split(separator: ",").compactMap { id in
+            hosts.first { $0.id.uuidString == id }
+        }
+    }
+
+    private func restoreTerminals() {
+        let restored = restorableHosts.map { TerminalSession(host: $0) }
+        guard !restored.isEmpty else { return }
+        sessions = restored
+        current = restored.last?.id
+        section = .terminal
     }
 
     private func connect(_ host: SSHHost) {
