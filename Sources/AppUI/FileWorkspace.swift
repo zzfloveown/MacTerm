@@ -21,6 +21,7 @@ struct FileWorkspace: View {
     @State private var permissions = ""
     @State private var synchronized = false
     @State private var fileToDelete: SFTPEntry?
+    @State private var editing: RemoteEdit?
     @State private var localSelected: String?
     @State private var remoteSelected: String?
     @State private var message = ""
@@ -78,6 +79,7 @@ struct FileWorkspace: View {
             }
             if let entry = remoteFiles.first(where: { $0.name == remoteSelected }), loadedRemote == remote {
                 HStack {
+                    Button("编辑文本") { edit(entry) }.disabled(entry.isDirectory || active)
                     TextField("新名称或远端绝对路径", text: $rename)
                     Button("重命名") {
                         let from = join(remote, entry.name), to = rename.hasPrefix("/") ? rename : join(remote, rename)
@@ -102,6 +104,9 @@ struct FileWorkspace: View {
             }
             if !message.isEmpty { Text(message).foregroundStyle(.secondary).textSelection(.enabled) }
         }.task { await refreshLocal(); await refreshRemote() }
+            .sheet(item: $editing) { item in
+                RemoteEditor(edit: item, client: client, host: host) { await refreshRemote() }
+            }
             .confirmationDialog("删除远端项目？", isPresented: Binding(
                 get: { fileToDelete != nil }, set: { if !$0 { fileToDelete = nil } }
             ), titleVisibility: .visible, presenting: fileToDelete) { entry in
@@ -156,6 +161,18 @@ struct FileWorkspace: View {
                 }
             }
         }.padding(8).frame(minWidth: 280)
+    }
+
+    private func edit(_ entry: SFTPEntry) {
+        let path = join(remote, entry.name)
+        Task {
+            active = true
+            defer { active = false }
+            do {
+                let file = try await client.readText(at: path, on: host)
+                editing = RemoteEdit(path: path, original: file)
+            } catch { message = error.localizedDescription }
+        }
     }
 
     private func join(_ folder: String, _ name: String) -> String {

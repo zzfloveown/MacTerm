@@ -102,6 +102,20 @@ final class SSHIntegrationTests: XCTestCase {
         try data.prefix(100).write(to: localPartial)
         try await sftp.transfer(local: resumedDownload, remote: resumed, on: host, upload: false, id: downloadID) { _ in }
         XCTAssertEqual(try Data(contentsOf: resumedDownload), data)
+        let textPath = folder + "/edit.txt"
+        try Data("原文".utf8).write(to: URL(fileURLWithPath: textPath))
+        let originalText = try await sftp.readText(at: textPath, on: host)
+        XCTAssertEqual(originalText.text, "原文")
+        try await sftp.writeText("修改", basedOn: originalText, at: textPath, on: host)
+        let modified = try await sftp.readText(at: textPath, on: host)
+        XCTAssertEqual(modified.text, "修改")
+        do {
+            try await sftp.writeText("旧版本覆盖", basedOn: originalText, at: textPath, on: host)
+            XCTFail("Stale edits were accepted")
+        } catch {
+            XCTAssertEqual(try String(contentsOfFile: textPath, encoding: .utf8), "修改")
+        }
+        try await sftp.deleteFile(textPath, on: host)
         try await sftp.deleteFile(resumed, on: host)
         try await sftp.deleteFile(renamed, on: host)
         let emptied = try await sftp.list(folder, on: host)

@@ -24,7 +24,7 @@ extension SFTPClient {
     }
 }
 
-private extension SFTPChannel {
+extension SFTPChannel {
     func upload(_ path: URL, to final: String, partial: String,
                 progress: (TransferProgress) -> Void) throws {
         let current = try localAttributes(path)
@@ -172,9 +172,9 @@ private extension SFTPChannel {
     }
 }
 
-private typealias FileAttributes = (size: UInt64?, mode: UInt32?, modified: Date?)
+typealias FileAttributes = (size: UInt64?, mode: UInt32?, modified: Date?)
 
-private extension Data {
+extension Data {
     static func offset(_ value: UInt64) -> Data {
         word(UInt32(value >> 32)) + word(UInt32(truncatingIfNeeded: value))
     }
