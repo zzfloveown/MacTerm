@@ -14,6 +14,7 @@ struct HostEditor: View {
     var body: some View {
         Form {
             TextField("名称", text: $host.name)
+            TextField("分组", text: Binding(get: { host.group ?? "" }, set: { host.group = $0.isEmpty ? nil : $0 }))
             TextField("主机名或 IP", text: $host.address)
             TextField("SSH 用户名", text: $host.user)
             TextField("端口", value: $host.port, format: .number.grouping(.never))

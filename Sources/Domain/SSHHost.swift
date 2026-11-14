@@ -8,9 +8,10 @@ public struct SSHHost: Identifiable, Codable, Hashable, Sendable {
     public var port: Int
     public var identity: String
     public var jump: String
+    public var group: String?
 
     public init(id: UUID = UUID(), name: String = "", address: String = "", user: String = "",
-                port: Int = 22, identity: String = "", jump: String = "") {
+                port: Int = 22, identity: String = "", jump: String = "", group: String? = nil) {
         self.id = id
         self.name = name
         self.address = address
@@ -18,6 +19,7 @@ public struct SSHHost: Identifiable, Codable, Hashable, Sendable {
         self.port = port
         self.identity = identity
         self.jump = jump
+        self.group = group
     }
 
     public var label: String { name.isEmpty ? address : name }

@@ -49,6 +49,8 @@ public struct Workspace: View {
 
     var host: SSHHost? { hosts.first { $0.id == hostID } }
 
+    private var hostGroups: [String] { Set(hosts.map { $0.group ?? "服务器" }).sorted() }
+
     public var body: some View {
         NavigationSplitView {
             List(selection: $section) {
@@ -57,14 +59,16 @@ public struct Workspace: View {
                         Label(item.rawValue, systemImage: item.icon).tag(item)
                     }
                 }
-                SwiftUI.Section("服务器") {
-                    ForEach(hosts) { item in
-                        Button {
-                            hostID = item.id
-                            section = .hosts
-                        } label: {
-                            Label(item.label, systemImage: item.id == hostID ? "checkmark.circle.fill" : "server.rack")
-                        }.buttonStyle(.plain)
+                ForEach(hostGroups, id: \.self) { name in
+                    SwiftUI.Section(name) {
+                        ForEach(hosts.filter { ($0.group ?? "服务器") == name }) { item in
+                            Button {
+                                hostID = item.id
+                                section = .hosts
+                            } label: {
+                                Label(item.label, systemImage: item.id == hostID ? "checkmark.circle.fill" : "server.rack")
+                            }.buttonStyle(.plain)
+                        }
                     }
                 }
             }.navigationSplitViewColumnWidth(min: 190, ideal: 220)
@@ -163,8 +167,7 @@ public struct Workspace: View {
         case .transfers: TransferPage(transfers: transfers)
         case .keys: KeyPage(host: host, store: store, updated: { await refresh() }).id(host?.id)
         case .settings:
-            Form { Slider(value: $fontSize, in: 9...26, step: 1) { Text("字体大小 \(Int(fontSize))") } }
-                .formStyle(.grouped)
+            SettingsPage(store: store, fontSize: $fontSize, onRestore: { await refresh() })
         case .tunnels: EmptyView()
         case .alerts:
             if let host { AlertPage(host: host, monitor: monitors.session(for: host)).id(host.id) } else { chooseHost }
