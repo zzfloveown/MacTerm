@@ -110,39 +110,41 @@ public struct Sample: Sendable {
 public struct MonitorEngine: Sendable {
     let transport: any SSHTransport
 
+    static let collector = #"""
+    export LC_ALL=C
+    for path in /proc/stat /proc/meminfo /proc/net/dev /proc/loadavg; do
+        cat "$path" || exit 1
+        printf '\n__MACTERM__\n'
+    done
+    df -PT || exit 1
+    printf '\n__MACTERM__\n'
+    cat /proc/diskstats
+    printf '\n__MACTERM__\n'
+    hostname
+    uname -sr
+    date -Iseconds
+    uptime -p
+    grep '^PRETTY_NAME=' /etc/os-release 2>/dev/null || true
+    grep -m 1 '^model name' /proc/cpuinfo || true
+    printf '\n__MACTERM__\n'
+    ip -br address 2>/dev/null || true
+    if command -v ss >/dev/null; then
+        printf 'TCP '
+        ss -H -tan | wc -l
+    fi
+    printf '\n__MACTERM__\n'
+    for sensor in /sys/class/thermal/thermal_zone*; do
+        [ -r "$sensor/temp" ] || continue
+        awk 'NR==1 {printf "%.1f C ", $1/1000}' "$sensor/temp"
+        cat "$sensor/type" 2>/dev/null || true
+    done
+    printf '\n'
+    """#
+
     public init(transport: any SSHTransport = OpenSSHTransport()) { self.transport = transport }
 
     public func sample(_ host: SSHHost) async throws -> Sample {
-        let script = """
-        export LC_ALL=C
-        for path in /proc/stat /proc/meminfo /proc/net/dev /proc/loadavg; do
-            cat "$path" || exit 1
-            printf '\\n__MACTERM__\\n'
-        done
-        df -PT || exit 1
-        printf '\\n__MACTERM__\\n'
-        cat /proc/diskstats
-        printf '\\n__MACTERM__\\n'
-        hostname
-        uname -sr
-        date -Iseconds
-        uptime -p
-        grep '^PRETTY_NAME=' /etc/os-release 2>/dev/null || true
-        grep -m 1 '^model name' /proc/cpuinfo || true
-        printf '\\n__MACTERM__\\n'
-        ip -br address 2>/dev/null || true
-        if command -v ss >/dev/null; then
-            printf 'TCP '
-            ss -H -tan | wc -l
-        fi
-        printf '\\n__MACTERM__\\n'
-        for sensor in /sys/class/thermal/thermal_zone*; do
-            [ -r "$sensor/temp" ] || continue
-            awk 'NR==1 {printf "%.1f C ", $1/1000}' "$sensor/temp"
-            cat "$sensor/type" 2>/dev/null || true
-        done
-        printf '\\n'
-        """
+        let script = Self.collector
         let text = try await transport.execute(on: host, arguments: ["sh", "-c", script])
         return try Sample.parse(text)
     }
