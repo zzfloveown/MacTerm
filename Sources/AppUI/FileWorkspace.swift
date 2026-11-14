@@ -1,8 +1,12 @@
+import AppKit
+import CoreTransferable
 import Domain
 import Foundation
 import SFTPCore
+import StorageCore
 import SwiftUI
 import TransferCore
+import UniformTypeIdentifiers
 
 struct FileWorkspace: View {
     let host: SSHHost
@@ -14,10 +18,12 @@ struct FileWorkspace: View {
     @State private var loadedRemote: String?
     @State private var loadedLocal: String?
     @State private var rename = ""
+    @State private var permissions = ""
+    @State private var synchronized = false
+    @State private var fileToDelete: SFTPEntry?
     @State private var localSelected: String?
     @State private var remoteSelected: String?
     @State private var message = ""
-    @State private var confirming = false
     @State private var folder = ""
     @State private var active = false
     let client = SFTPClient()
@@ -28,17 +34,36 @@ struct FileWorkspace: View {
                 Button("刷新") { Task { await refreshLocal(); await refreshRemote() } }
                 Button("上传 →") { copy(upload: true) }.disabled(localSelected == nil || loadedLocal != local || loadedRemote != remote || active)
                 Button("← 下载") { copy(upload: false) }.disabled(remoteSelected == nil || loadedLocal != local || loadedRemote != remote || active)
-                Button("删除远程文件", role: .destructive) { confirming = true }
-                    .disabled(remoteSelected == nil || loadedLocal != local || loadedRemote != remote || active)
+                Button("删除远程文件", role: .destructive) {
+                    fileToDelete = remoteFiles.first { $0.name == remoteSelected }
+                }.disabled(remoteSelected == nil || loadedRemote != remote || active)
+                Toggle("同步导航", isOn: $synchronized).toggleStyle(.checkbox)
                 Spacer()
                 if active { ProgressView().controlSize(.small) }
             }
             HSplitView {
-                pane("本地", path: $local, selection: $localSelected, items: localFiles) {
+                pane("本地", path: $local, selection: $localSelected, items: localFiles, isRemote: false) {
                     Task { await refreshLocal() }
+                }.dropDestination(for: RemoteFileDrag.self) { items, _ in
+                    guard loadedLocal == local, loadedRemote == remote else { return false }
+                    let accepted = items.filter { $0.host == host.id && $0.directory == remote }
+                    for item in accepted where remoteFiles.contains(where: { $0.name == item.name }) {
+                        schedule(local: URL(fileURLWithPath: join(local, item.name)), remote: join(remote, item.name),
+                                 upload: false, directory: remoteFiles.first { $0.name == item.name }?.isDirectory == true)
+                    }
+                    return !accepted.isEmpty
                 }
-                pane("远程 SFTP", path: $remote, selection: $remoteSelected, items: remoteFiles.map(\.name), metadata: remoteFiles) {
+                pane("远程 SFTP", path: $remote, selection: $remoteSelected, items: remoteFiles.map(\.name),
+                     metadata: remoteFiles, isRemote: true) {
                     Task { await refreshRemote() }
+                }.dropDestination(for: URL.self) { items, _ in
+                    guard loadedRemote == remote else { return false }
+                    let files = items.filter(\.isFileURL)
+                    for file in files {
+                        let directory = (try? file.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                        schedule(local: file, remote: join(remote, file.lastPathComponent), upload: true, directory: directory)
+                    }
+                    return !files.isEmpty
                 }
             }
             HStack {
@@ -53,47 +78,55 @@ struct FileWorkspace: View {
             }
             if let entry = remoteFiles.first(where: { $0.name == remoteSelected }), loadedRemote == remote {
                 HStack {
-                    TextField("新名称", text: $rename)
+                    TextField("新名称或远端绝对路径", text: $rename)
                     Button("重命名") {
-                        let from = join(remote, entry.name), to = join(remote, rename)
+                        let from = join(remote, entry.name), to = rename.hasPrefix("/") ? rename : join(remote, rename)
                         Task {
                             do { try await client.rename(from, to: to, on: host); rename = ""; await refreshRemote() }
                             catch { message = error.localizedDescription }
                         }
-                    }.disabled(rename.isEmpty || rename.contains("/") || [".", ".."].contains(rename))
+                    }.disabled(rename.isEmpty || (!rename.hasPrefix("/") && rename.contains("/")) || [".", ".."].contains(rename))
                     if let permissions = entry.permissions {
                         Text(String(permissions & 0o777, radix: 8)).monospacedDigit()
                     }
+                    TextField("权限", text: $permissions).frame(width: 65)
+                    Button("修改权限") {
+                        guard let mode = UInt32(permissions, radix: 8) else { return }
+                        let destination = join(remote, entry.name)
+                        Task {
+                            do { try await client.setPermissions(mode, at: destination, on: host); await refreshRemote() }
+                            catch { message = error.localizedDescription }
+                        }
+                    }.disabled(UInt32(permissions, radix: 8).map { $0 > 0o777 } ?? true)
                 }
             }
             if !message.isEmpty { Text(message).foregroundStyle(.secondary).textSelection(.enabled) }
         }.task { await refreshLocal(); await refreshRemote() }
-            .confirmationDialog("删除选中的远端文件？", isPresented: $confirming, titleVisibility: .visible) {
+            .confirmationDialog("删除远端项目？", isPresented: Binding(
+                get: { fileToDelete != nil }, set: { if !$0 { fileToDelete = nil } }
+            ), titleVisibility: .visible, presenting: fileToDelete) { entry in
                 Button("确认删除", role: .destructive) {
-                    guard let remoteSelected else { return }
-                    guard loadedRemote == remote else { return }
-                    let directory = remoteFiles.first { $0.name == remoteSelected }?.isDirectory == true
-                    let path = join(remote, remoteSelected)
+                    guard let directory = loadedRemote, directory == remote else { return }
+                    let path = join(directory, entry.name)
                     Task {
                         do {
-                            if directory { try await client.deleteDirectory(path, on: host) }
+                            if entry.isDirectory { try await client.deleteDirectory(path, on: host) }
                             else { try await client.deleteFile(path, on: host) }
                             await refreshRemote()
-                        }
-                        catch { message = error.localizedDescription }
+                        } catch { message = error.localizedDescription }
                     }
                 }
-            }
+            } message: { Text($0.name) }
     }
 
     private func pane(_ title: String, path: Binding<String>, selection: Binding<String?>,
-                      items: [String], metadata: [SFTPEntry] = [], load: @escaping () -> Void) -> some View {
+                      items: [String], metadata: [SFTPEntry] = [], isRemote: Bool, load: @escaping () -> Void) -> some View {
         VStack(alignment: .leading) {
             Text(title).font(.headline)
             HStack {
                 Button("上级", systemImage: "arrow.up") {
-                    path.wrappedValue = URL(fileURLWithPath: path.wrappedValue).deletingLastPathComponent().path
-                    load()
+                    let parent = URL(fileURLWithPath: path.wrappedValue).deletingLastPathComponent().path
+                    navigate(parent, name: nil, isRemote: isRemote, path: path, load: load)
                 }.labelStyle(.iconOnly)
                 TextField("绝对路径", text: path).onSubmit(load)
                 Button("打开") { load() }
@@ -101,7 +134,7 @@ struct FileWorkspace: View {
             List(selection: selection) {
                 ForEach(items, id: \.self) { name in
                     let entry = metadata.first { $0.name == name }
-                    HStack {
+                    let row = HStack {
                         Label(name, systemImage: entry?.isDirectory == true ? "folder" : "doc")
                         Spacer()
                         if let size = entry?.size, entry?.isDirectory == false {
@@ -113,8 +146,12 @@ struct FileWorkspace: View {
                         }
                     }.tag(name).onTapGesture(count: 2) {
                         guard entry?.isDirectory != false else { return }
-                        path.wrappedValue = join(path.wrappedValue, name)
-                        load()
+                        navigate(join(path.wrappedValue, name), name: name, isRemote: isRemote, path: path, load: load)
+                    }
+                    if isRemote {
+                        row.draggable(RemoteFileDrag(host: host.id, directory: path.wrappedValue, name: name))
+                    } else {
+                        row.draggable(URL(fileURLWithPath: join(path.wrappedValue, name)))
                     }
                 }
             }
@@ -145,18 +182,98 @@ struct FileWorkspace: View {
         } catch { if path == remote { remoteFiles = []; loadedRemote = nil; message = error.localizedDescription } }
     }
 
+    private func navigate(_ destination: String, name: String?, isRemote: Bool, path: Binding<String>, load: () -> Void) {
+        path.wrappedValue = destination
+        load()
+        guard synchronized else { return }
+        if isRemote {
+            local = name.map { join(local, $0) } ?? URL(fileURLWithPath: local).deletingLastPathComponent().path
+            Task { await refreshLocal() }
+        } else {
+            remote = name.map { join(remote, $0) } ?? URL(fileURLWithPath: remote).deletingLastPathComponent().path
+            Task { await refreshRemote() }
+        }
+    }
+
     private func copy(upload: Bool) {
         guard let name = upload ? localSelected : remoteSelected else { return }
         let localPath = URL(fileURLWithPath: join(local, name))
         let remotePath = join(remote, name)
-        active = true
+        let isDirectory = upload
+            ? (try? localPath.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            : remoteFiles.first { $0.name == name }?.isDirectory == true
+        schedule(local: localPath, remote: remotePath, upload: upload, directory: isDirectory)
+    }
+
+    private func schedule(local: URL, remote: String, upload: Bool, directory: Bool) {
         Task {
+            active = true
             defer { active = false }
             do {
-                try await transfers.enqueue(.init(host: host, local: localPath, remote: remotePath, upload: upload))
+                if directory {
+                    try await enqueueTree(local, remote: remote, upload: upload)
+                } else {
+                    try await transfers.enqueue(.init(host: host, local: local, remote: remote, upload: upload))
+                }
                 message = "已加入传输队列"
             } catch { message = error.localizedDescription }
         }
+    }
+
+    private func enqueueTree(_ source: URL, remote: String, upload: Bool) async throws {
+        let tree: (directories: [String], files: [String])
+        if upload {
+            tree = try await Task.detached { try LocalTransferTree.scan(source) }.value
+            for relative in tree.directories {
+                try await client.createDirectory(relative.isEmpty ? remote : join(remote, relative), on: host)
+            }
+        } else {
+            tree = try await client.directoryTree(remote, on: host)
+            let directories = tree.directories
+            try await Task.detached {
+                for relative in directories {
+                    let folder = relative.isEmpty ? source : source.appendingPathComponent(relative)
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false,
+                                                            attributes: [.posixPermissions: 0o700])
+                }
+            }.value
+        }
+        let jobs = tree.files.map { relative in
+            TransferJob(host: host, local: source.appendingPathComponent(relative), remote: join(remote, relative), upload: upload)
+        }
+        try await transfers.enqueue(jobs)
+    }
+}
+
+private struct RemoteFileDrag: Codable, Transferable {
+    let host: UUID
+    let directory: String
+    let name: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .init(exportedAs: "com.macterm.app.remote-file"))
+    }
+}
+
+private enum LocalTransferTree {
+    static func scan(_ root: URL) throws -> (directories: [String], files: [String]) {
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        let type = try root.resourceValues(forKeys: keys)
+        guard type.isDirectory == true, type.isSymbolicLink != true,
+              let children = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys)) else {
+            throw MacTermError("无法读取本地目录。")
+        }
+        var directories = [""]
+        var files: [String] = []
+        for case let child as URL in children {
+            let info = try child.resourceValues(forKeys: keys)
+            if info.isSymbolicLink == true { children.skipDescendants(); continue }
+            let relative = child.pathComponents.dropFirst(root.pathComponents.count).joined(separator: "/")
+            if info.isDirectory == true { directories.append(relative) }
+            if info.isRegularFile == true { files.append(relative) }
+            guard directories.count + files.count <= 100_000 else { throw MacTermError("目录超过递归扫描上限。") }
+        }
+        return (directories, files)
     }
 }
 

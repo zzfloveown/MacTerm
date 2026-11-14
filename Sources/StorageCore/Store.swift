@@ -114,12 +114,19 @@ public actor Store {
     }
 
     public func save(_ record: TransferRecord) throws {
-        let payload = try JSONEncoder().encode(record)
+        try save([record])
+    }
+
+    public func save(_ records: [TransferRecord]) throws {
         try queue.write { db in
-            try db.execute(sql: """
-                INSERT INTO transfer_tasks VALUES (?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET payload = excluded.payload
-                """, arguments: [record.id.uuidString, record.createdAt.timeIntervalSince1970, payload])
+            let encoder = JSONEncoder()
+            for record in records {
+                let payload = try encoder.encode(record)
+                try db.execute(sql: """
+                    INSERT INTO transfer_tasks VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET payload = excluded.payload
+                    """, arguments: [record.id.uuidString, record.createdAt.timeIntervalSince1970, payload])
+            }
         }
     }
 

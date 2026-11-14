@@ -43,11 +43,15 @@ public final class TransferQueue: ObservableObject {
     }
 
     public func enqueue(_ job: TransferJob) async throws {
+        try await enqueue([job])
+    }
+
+    public func enqueue(_ jobs: [TransferJob]) async throws {
         await load()
         guard loaded else { throw MacTermError("无法读取传输队列。") }
-        let record = TransferRecord(name: job.local.lastPathComponent, state: "待传输", job: job)
-        try await store.save(record)
-        records.insert(record, at: 0)
+        let entries = jobs.map { TransferRecord(name: $0.local.lastPathComponent, state: "待传输", job: $0) }
+        try await store.save(entries)
+        records.insert(contentsOf: entries.reversed(), at: 0)
         startPending()
     }
 
