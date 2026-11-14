@@ -10,6 +10,7 @@ struct TunnelPage: View {
     @State private var destinationPort = 80
     @State private var task: Task<Void, Never>?
     @State private var status = ""
+    @State private var reconnect = false
 
     var body: some View {
         Form {
@@ -23,6 +24,7 @@ struct TunnelPage: View {
                     TextField("目的地址", text: $destination).disabled(task != nil)
                     TextField("目的端口", value: $destinationPort, format: .number.grouping(.never)).disabled(task != nil)
                 }
+                Toggle("连接断开后重试", isOn: $reconnect).disabled(task != nil)
                 HStack {
                     Button("启动转发") { start(host) }.disabled(task != nil)
                     Button("停止") { task?.cancel() }.disabled(task == nil)
@@ -34,15 +36,27 @@ struct TunnelPage: View {
 
     private func start(_ host: SSHHost) {
         let mode = mode, port = port, destination = destination, destinationPort = destinationPort
-        status = "SSH 转发进程运行中"
+        let reconnect = reconnect
+        status = "正在建立隧道"
         task = Task {
             defer { task = nil }
-            do {
-                try await OpenSSHTransport().forward(on: host, mode: mode, port: port,
-                                                     destination: destination, destinationPort: destinationPort)
-                status = "隧道已退出"
-            } catch is CancellationError { status = "隧道已停止" }
-            catch { status = error.localizedDescription }
+            while !Task.isCancelled {
+                do {
+                    try await OpenSSHTransport().forward(on: host, mode: mode, port: port,
+                        destination: destination, destinationPort: destinationPort) {
+                        Task { @MainActor in
+                            if task != nil { status = "隧道已建立" }
+                        }
+                    }
+                    status = "隧道已退出"
+                } catch is CancellationError {
+                    break
+                } catch { status = error.localizedDescription }
+                guard reconnect, !Task.isCancelled else { return }
+                status += " 五秒后重试。"
+                do { try await Task.sleep(for: .seconds(5)) } catch { break }
+            }
+            status = "隧道已停止"
         }
     }
 }

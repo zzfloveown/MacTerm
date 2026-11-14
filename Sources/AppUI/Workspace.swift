@@ -71,7 +71,11 @@ public struct Workspace: View {
         } detail: {
             VStack(spacing: 0) {
                 ZStack {
-                    if section != .terminal { page.padding() }
+                    if section != .terminal && section != .tunnels { page.padding() }
+                    TunnelPage(host: host).id(host?.id)
+                        .opacity(section == .tunnels ? 1 : 0)
+                        .allowsHitTesting(section == .tunnels)
+                        .accessibilityHidden(section != .tunnels)
                     TerminalWorkspace(sessions: $sessions, current: $current, split: $split, fontSize: fontSize)
                         .opacity(section == .terminal ? 1 : 0)
                         .allowsHitTesting(section == .terminal)
@@ -149,14 +153,19 @@ public struct Workspace: View {
         case .monitor:
             if let host { MonitorPage(host: host, monitor: monitors.session(for: host)).id(host.id) } else { chooseHost }
         case .docker:
-            if let host { ContainerPage(host: host).id(host.id) } else { chooseHost }
-        case .kubernetes: KubernetesPage()
+            if let host { ContainerPage(host: host) { command, title in
+                open(TerminalSession(host: host, command: command, title: title))
+            }.id(host.id) } else { chooseHost }
+        case .kubernetes:
+            KubernetesPage { executable, args, title in
+                open(TerminalSession(executable: executable, command: args, title: title))
+            }
         case .transfers: TransferPage(transfers: transfers)
         case .keys: KeyPage(host: host, store: store, updated: { await refresh() }).id(host?.id)
         case .settings:
             Form { Slider(value: $fontSize, in: 9...26, step: 1) { Text("字体大小 \(Int(fontSize))") } }
                 .formStyle(.grouped)
-        case .tunnels: TunnelPage(host: host).id(host?.id)
+        case .tunnels: EmptyView()
         case .alerts:
             if let host { AlertPage(host: host, monitor: monitors.session(for: host)).id(host.id) } else { chooseHost }
         case .terminal: EmptyView()
@@ -168,7 +177,10 @@ public struct Workspace: View {
     }
 
     private func connect(_ host: SSHHost) {
-        let tab = TerminalSession(host: host)
+        open(TerminalSession(host: host))
+    }
+
+    private func open(_ tab: TerminalSession) {
         sessions.append(tab)
         current = tab.id
         section = .terminal

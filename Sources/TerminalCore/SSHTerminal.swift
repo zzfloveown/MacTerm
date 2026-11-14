@@ -6,15 +6,25 @@ import SwiftUI
 
 /// 用 SwiftTerm 的原生 PTY 桥接 OpenSSH，交互式认证由 OpenSSH 处理。
 public struct SSHTerminal: NSViewRepresentable {
+    private let executable: String
     private let args: [String]
     private let fontSize: Double
     private let onExit: (Int32?) -> Void
 
     public init(host: SSHHost, fontSize: Double = 13, command: [String] = [],
                 onExit: @escaping (Int32?) -> Void = { _ in }) throws {
+        executable = "/usr/bin/ssh"
         args = try OpenSSHArguments.common(host, interactive: true)
             + ["-tt", "--", host.address]
             + (command.isEmpty ? [] : [command.map(OpenSSHArguments.shellQuote).joined(separator: " ")])
+        self.fontSize = fontSize
+        self.onExit = onExit
+    }
+
+    public init(executable: String, arguments: [String], fontSize: Double = 13,
+                onExit: @escaping (Int32?) -> Void = { _ in }) {
+        self.executable = executable
+        args = arguments
         self.fontSize = fontSize
         self.onExit = onExit
     }
@@ -27,7 +37,7 @@ public struct SSHTerminal: NSViewRepresentable {
         view.nativeForegroundColor = .white
         view.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
         view.processDelegate = context.coordinator
-        view.startProcess(executable: "/usr/bin/ssh", args: args)
+        view.startProcess(executable: executable, args: args)
         return view
     }
 

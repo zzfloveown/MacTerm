@@ -4,7 +4,8 @@ import TerminalCore
 
 struct TerminalSession: Identifiable {
     var id = UUID()
-    var host: SSHHost
+    var host: SSHHost?
+    var executable: String?
     var command: [String] = []
     var title: String?
     var exitStatus: String?
@@ -30,7 +31,7 @@ struct TerminalWorkspace: View {
                         HStack {
                             ForEach(sessions) { item in
                                 HStack(spacing: 4) {
-                                    Button(item.title ?? item.host.label) { current = item.id }
+                                    Button(item.title ?? item.host?.label ?? "终端") { current = item.id }
                                         .fontWeight(current == item.id ? .bold : .regular)
                                         .help(item.exitStatus ?? "SSH 终端")
                                     Button("关闭标签", systemImage: "xmark") { close(item.id) }.labelStyle(.iconOnly)
@@ -60,12 +61,14 @@ struct TerminalWorkspace: View {
                         ForEach(sessions) { item in
                             let visible = item.id == current || item.id == second
                             Group {
-                                if let terminal = try? SSHTerminal(host: item.host, fontSize: fontSize, command: item.command, onExit: { code in
-                                    if let index = sessions.firstIndex(where: { $0.id == item.id }) {
-                                        sessions[index].exitStatus = code.map { "SSH 已断开（\($0)）" } ?? "SSH 已断开"
-                                    }
-                                }) { terminal }
-                                else { Text("服务器配置无效") }
+                                if let host = item.host,
+                                   let terminal = try? SSHTerminal(host: host, fontSize: fontSize, command: item.command,
+                                                                  onExit: { onExit(item.id, code: $0) }) {
+                                    terminal
+                                } else if let executable = item.executable {
+                                    SSHTerminal(executable: executable, arguments: item.command, fontSize: fontSize,
+                                                onExit: { onExit(item.id, code: $0) })
+                                } else { Text("终端配置无效") }
                             }
                             .frame(width: width, height: height)
                             .offset(x: item.id == second && split == .horizontal ? width : 0,
@@ -77,6 +80,12 @@ struct TerminalWorkspace: View {
                     }
                 }
             }
+        }
+    }
+
+    private func onExit(_ id: UUID, code: Int32?) {
+        if let index = sessions.firstIndex(where: { $0.id == id }) {
+            sessions[index].exitStatus = code.map { "会话已断开（\($0)）" } ?? "会话已断开"
         }
     }
 

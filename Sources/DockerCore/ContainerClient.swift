@@ -19,7 +19,11 @@ public struct ContainerClient: Sendable {
         throw MacTermError("Docker 和 nerdctl 均不可用。请检查连接、安装状态和管理权限。")
     }
 
-    public func execute(_ arguments: [String], engine: ContainerEngine, on host: SSHHost) async throws -> String {
-        try await transport.execute(on: host, arguments: [engine.rawValue] + arguments)
+    public func execute(_ arguments: [String], engine: ContainerEngine, on host: SSHHost, includeStderr: Bool = false) async throws -> String {
+        let args = [engine.rawValue] + arguments
+        if includeStderr, let ssh = transport as? OpenSSHTransport {
+            return try await ssh.execute(on: host, arguments: args, includeStderr: true)
+        }
+        return try await transport.execute(on: host, arguments: args)
     }
 }

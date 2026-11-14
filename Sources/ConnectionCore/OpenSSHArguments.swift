@@ -16,14 +16,14 @@ public enum OpenSSHArguments {
               }) else { throw MacTermError("请检查用户名、主机、端口、私钥绝对路径和跳板机。") }
     }
 
-    public static func common(_ host: SSHHost, interactive: Bool) throws -> [String] {
+    public static func common(_ host: SSHHost, interactive: Bool, sharesConnection: Bool = true) throws -> [String] {
         try validate(host)
         var args = ["-F", "/dev/null", "-o", "Port=\(host.port)",
                     "-o", "User=\(host.user)", "-o", "ConnectTimeout=10",
                     "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2",
                     "-o", "StrictHostKeyChecking=\(interactive ? "ask" : "yes")",
                     "-o", "ForwardAgent=no", "-o", "BatchMode=\(interactive ? "no" : "yes")"]
-        if let socket = SSHControlPath.forHost(host) {
+        if sharesConnection, let socket = SSHControlPath.forHost(host) {
             args += ["-o", "ControlPath=\(socket)", "-o", "ControlMaster=\(interactive ? "auto" : "no")"]
         }
         if !host.identity.isEmpty { args += ["-i", host.identity, "-o", "IdentitiesOnly=yes"] }

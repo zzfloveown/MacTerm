@@ -9,8 +9,12 @@ public protocol SSHTransport: Sendable {
 public struct OpenSSHTransport: SSHTransport {
     public init() {}
 
-    /// 渲染远端命令时独立转义每个参数，后台调用只允许已验证的主机。
     public func execute(on host: SSHHost, arguments: [String]) async throws -> String {
+        try await execute(on: host, arguments: arguments, includeStderr: false)
+    }
+
+    /// 渲染远端命令时独立转义每个参数，后台调用只允许已验证的主机。
+    public func execute(on host: SSHHost, arguments: [String], includeStderr: Bool) async throws -> String {
         guard let command = arguments.first, !command.isEmpty, !command.hasPrefix("-"),
               arguments.allSatisfy({ !$0.utf8.contains(0) }) else {
             throw MacTermError("无效的远端命令。")
@@ -21,6 +25,6 @@ public struct OpenSSHTransport: SSHTransport {
         guard result.status == 0 else {
             throw MacTermError("SSH 命令失败（\(result.status)）。请检查连接、主机指纹和非交互认证。")
         }
-        return result.text
+        return result.text + (includeStderr ? String(decoding: result.diagnostics, as: UTF8.self) : "")
     }
 }
