@@ -52,6 +52,11 @@ final class SSHIntegrationTests: XCTestCase {
         let response = try await ssh.execute(on: host, arguments: ["printf", "%s", "round trip ' ;"])
         XCTAssertEqual(response, "round trip ' ;")
 
+        var chained = host
+        chained.jump = "\(user)@127.0.0.1:40225,\(user)@127.0.0.1:40226"
+        let jumped = try await ssh.execute(on: chained, arguments: ["printf", "two-jumps"])
+        XCTAssertEqual(jumped, "two-jumps")
+
         var mismatched = host
         mismatched.address = "localhost"
         do {

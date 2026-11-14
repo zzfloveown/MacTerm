@@ -7,6 +7,7 @@ fixture="$(mktemp -d /tmp/macterm-ci.XXXXXXXX)"
 port=40222
 known="$HOME/.ssh/known_hosts"
 cleanup() {
+    if [[ -n "${SSH_AGENT_PID:-}" ]]; then ssh-agent -k >/dev/null || true; fi
     if [[ -f "$fixture/sshd.pid" ]]; then
         sudo kill "$(sudo cat "$fixture/sshd.pid")" || true
     fi
@@ -26,6 +27,8 @@ mkdir -p "$HOME/.ssh"
 if [[ -f "$known" ]]; then cp "$known" "$fixture/known_hosts.original"; fi
 cat > "$fixture/sshd_config" <<CONFIG
 Port $port
+Port 40225
+Port 40226
 ListenAddress 127.0.0.1
 HostKey $fixture/host
 PidFile $fixture/sshd.pid
@@ -44,6 +47,13 @@ trap 'sudo tail -40 "$fixture/sshd.log" >&2 || true' ERR
 
 printf '[127.0.0.1]:%s %s\n' "$port" "$(cat "$fixture/host.pub")" >> "$known"
 printf '[localhost]:%s %s\n' "$port" "$(cat "$fixture/wrong.pub")" >> "$known"
+for jump_port in 40225 40226; do
+    printf '[127.0.0.1]:%s %s\n' "$jump_port" "$(cat "$fixture/host.pub")" >> "$known"
+done
+
+# ProxyJump 子连接通过 Agent 匹配密钥。
+eval "$(ssh-agent -s)" >/dev/null
+ssh-add "$fixture/user" >/dev/null 2>&1
 ssh -4 -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
     -o ConnectTimeout=5 -i "$fixture/user" -p "$port" "$(id -un)@127.0.0.1" true
 export MACTERM_TEST_FIXTURE="$fixture" MACTERM_TEST_PORT="$port" MACTERM_TEST_USER="$(id -un)"
