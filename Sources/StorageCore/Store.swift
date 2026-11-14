@@ -7,12 +7,29 @@ public struct TransferRecord: Codable, Identifiable, Sendable {
     public var name: String
     public var state: String
     public var createdAt: Date
+    public var job: TransferJob?
+    public var detail: String?
 
-    public init(id: UUID = UUID(), name: String, state: String, createdAt: Date = Date()) {
+    public init(id: UUID = UUID(), name: String, state: String, createdAt: Date = Date(), job: TransferJob? = nil) {
         self.id = id
         self.name = name
         self.state = state
         self.createdAt = createdAt
+        self.job = job
+    }
+}
+
+public struct TransferJob: Codable, Sendable {
+    public let host: SSHHost
+    public let local: URL
+    public let remote: String
+    public let upload: Bool
+
+    public init(host: SSHHost, local: URL, remote: String, upload: Bool) {
+        self.host = host
+        self.local = local
+        self.remote = remote
+        self.upload = upload
     }
 }
 

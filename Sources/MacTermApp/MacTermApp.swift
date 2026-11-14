@@ -2,19 +2,21 @@ import AppUI
 import OSLog
 import StorageCore
 import SwiftUI
+import TransferCore
 
 @main
 struct MacTermApp: App {
-    private let store = Result {
+    private let setup = Result {
         let folder = try Store.applicationSupport()
-        return try Store(url: folder.appendingPathComponent("MacTerm.sqlite"))
+        let store = try Store(url: folder.appendingPathComponent("MacTerm.sqlite"))
+        return (store, TransferQueue(store: store))
     }
 
     var body: some Scene {
         WindowGroup("MacTerm") {
-            switch store {
-            case .success(let store):
-                Workspace(store: store)
+            switch setup {
+            case .success(let (store, transfers)):
+                Workspace(store: store, transfers: transfers)
                     .frame(minWidth: 850, minHeight: 540)
             case .failure:
                 ContentUnavailableView("无法打开数据库", systemImage: "externaldrive.badge.exclamationmark",

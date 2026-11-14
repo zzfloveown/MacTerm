@@ -1,6 +1,7 @@
 import Domain
 import StorageCore
 import SwiftUI
+import TransferCore
 
 enum Section: String, CaseIterable, Identifiable {
     case dashboard = "工作台", terminal = "SSH 终端", files = "SFTP 文件", hosts = "服务器管理"
@@ -27,6 +28,7 @@ enum Section: String, CaseIterable, Identifiable {
 
 public struct Workspace: View {
     let store: Store
+    @ObservedObject var transfers: TransferQueue
     @State private var hosts: [SSHHost] = []
     @State private var hostID: UUID?
     @State private var section: Section? = .dashboard
@@ -38,7 +40,10 @@ public struct Workspace: View {
     @State private var split: SplitMode = .none
     @AppStorage("terminalFontSize") private var fontSize = 13.0
 
-    public init(store: Store) { self.store = store }
+    public init(store: Store, transfers: TransferQueue) {
+        self.store = store
+        self.transfers = transfers
+    }
 
     var host: SSHHost? { hosts.first { $0.id == hostID } }
 
@@ -86,7 +91,7 @@ public struct Workspace: View {
                 }.disabled(host == nil).keyboardShortcut("t", modifiers: .command)
             }
         }
-        .task { await refresh() }
+        .task { await refresh(); await transfers.load() }
         .background {
             SSHImportView(presenting: $importing, existing: hosts) { imported in
                 try await store.save(imported)
@@ -138,13 +143,13 @@ public struct Workspace: View {
                 }.formStyle(.grouped)
             } else { chooseHost }
         case .files:
-            if let host { FileWorkspace(host: host, store: store).id(host.id) } else { chooseHost }
+            if let host { FileWorkspace(host: host, transfers: transfers).id(host.id) } else { chooseHost }
         case .monitor:
             if let host { MonitorPage(host: host).id(host.id) } else { chooseHost }
         case .docker:
             if let host { ContainerPage(host: host).id(host.id) } else { chooseHost }
         case .kubernetes: KubernetesPage()
-        case .transfers: TransferPage(store: store)
+        case .transfers: TransferPage(transfers: transfers)
         case .keys: KeyPage(host: host, store: store, updated: { await refresh() }).id(host?.id)
         case .settings:
             Form { Slider(value: $fontSize, in: 9...26, step: 1) { Text("字体大小 \(Int(fontSize))") } }

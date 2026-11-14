@@ -7,12 +7,7 @@ public struct SFTPClient: Sendable {
     public init() {}
 
     public func list(_ directory: String, on host: SSHHost) async throws -> [String] {
-        let output = try await batch("ls -1a \(Self.path(directory))", on: host)
-        return output.split(separator: "\n").drop(while: { !$0.hasPrefix("sftp> ls ") }).dropFirst().compactMap { line in
-            guard !line.hasPrefix("sftp>") else { return nil }
-            let name = String(line.split(separator: "/").last ?? line)
-            return [".", "..", ""].contains(name) ? nil : name
-        }
+        try await entries(directory, on: host).map(\.name)
     }
 
     public func upload(local: String, remote: String, on host: SSHHost) async throws {
@@ -21,18 +16,6 @@ public struct SFTPClient: Sendable {
 
     public func download(remote: String, local: String, on host: SSHHost) async throws {
         _ = try await batch("get \(Self.path(remote)) \(Self.path(local))", on: host)
-    }
-
-    public func createDirectory(_ path: String, on host: SSHHost) async throws {
-        _ = try await batch("mkdir \(Self.path(path))", on: host)
-    }
-
-    public func rename(_ original: String, to destination: String, on host: SSHHost) async throws {
-        _ = try await batch("rename \(Self.path(original)) \(Self.path(destination))", on: host)
-    }
-
-    public func deleteFile(_ path: String, on host: SSHHost) async throws {
-        _ = try await batch("rm \(Self.path(path))", on: host)
     }
 
     /// 批处理只允许绝对、无控制字符、无通配符的路径，防止命令和模式展开。

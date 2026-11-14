@@ -23,7 +23,7 @@ let package = Package(
         .target(name: "DockerCore", dependencies: ["Domain", "SSHCore"]),
         .target(name: "KubernetesCore", dependencies: ["Infrastructure"]),
         .target(name: "AppUI", dependencies: ["Domain", "ConnectionCore", "StorageCore", "SSHCore", "TerminalCore", "SFTPCore", "MonitorCore", "TransferCore", "AlertCore", "DockerCore", "KubernetesCore"]),
-        .executableTarget(name: "MacTermApp", dependencies: ["AppUI", "StorageCore"]),
+        .executableTarget(name: "MacTermApp", dependencies: ["AppUI", "StorageCore", "TransferCore"]),
         .testTarget(name: "MacTermTests", dependencies: ["Domain", "ConnectionCore", "SSHCore", "SFTPCore", "MonitorCore", "StorageCore"])
     ],
     swiftLanguageModes: [.v5]
