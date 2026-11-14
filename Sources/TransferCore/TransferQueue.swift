@@ -9,6 +9,7 @@ import StorageCore
 public final class TransferQueue: ObservableObject {
     @Published public private(set) var records: [TransferRecord] = []
     @Published public private(set) var progress: [UUID: TransferProgress] = [:]
+    @Published public private(set) var speed: [UUID: Double] = [:]
     @Published public private(set) var failure = ""
 
     private let store: Store
@@ -104,6 +105,7 @@ public final class TransferQueue: ObservableObject {
             tasks[id] = nil
             stopStates[id] = nil
             progress[id] = nil
+            speed[id] = nil
             startPending()
         }
         do {
@@ -111,9 +113,12 @@ public final class TransferQueue: ObservableObject {
             try Task.checkCancellation()
             let reporter = ProgressReporter()
             try await client.transfer(local: job.local, remote: job.remote, on: job.host, upload: job.upload, id: id) { value in
-                guard reporter.shouldReport(value) else { return }
+                guard let rate = reporter.measure(value) else { return }
                 Task { @MainActor [weak self] in
-                    if self?.tasks[id] != nil { self?.progress[id] = value }
+                    if self?.tasks[id] != nil {
+                        self?.progress[id] = value
+                        self?.speed[id] = rate
+                    }
                 }
             }
             try await update(id, state: "已完成")
@@ -136,15 +141,19 @@ public final class TransferQueue: ObservableObject {
 private final class ProgressReporter: @unchecked Sendable {
     private let lock = NSLock()
     private var last = ContinuousClock.now
-    private var initial = true
+    private var lastBytes: UInt64?
 
-    func shouldReport(_ progress: TransferProgress) -> Bool {
+    func measure(_ progress: TransferProgress) -> Double? {
         lock.lock()
         defer { lock.unlock() }
         let now = ContinuousClock.now
-        guard initial || last.duration(to: now) >= .milliseconds(200) || progress.completed == progress.total else { return false }
-        initial = false
+        let duration = last.duration(to: now)
+        guard lastBytes == nil || duration >= .milliseconds(200) || progress.completed == progress.total else { return nil }
+        let components = duration.components
+        let seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
+        let bytes = lastBytes.map { max(Double(progress.completed) - Double($0), 0) } ?? 0
+        lastBytes = progress.completed
         last = now
-        return true
+        return seconds > 0 ? bytes / seconds : 0
     }
 }

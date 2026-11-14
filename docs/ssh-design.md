@@ -1,5 +1,7 @@
 # SSH 设计
 
-终端用 SwiftTerm PTY 执行系统 ssh。交互路径由 OpenSSH 提示用户确认首次指纹、输入密码及处理 keyboard-interactive。后台任务采用 BatchMode 和严格主机指纹校验。OpenSSH 使用账户的 known_hosts。应用显式传递目标和端口，禁用任意外部 SSH 配置及 Agent 转发。ProxyJump 支持经过校验的逗号分隔跳点。后续补充受限 SSH Config 导入、应用内指纹记录与认证代理、连接共享和会话恢复。
+终端用 SwiftTerm PTY 执行系统 ssh。首次连接由 OpenSSH 显示指纹并请求确认，后台任务启用严格指纹校验。应用使用账户的 known_hosts，可查看已保存指纹。受限 SSH Config 导入只读取显式 Host 和受支持字段。应用不执行 Include、Match 和 ProxyCommand，ProxyJump 接受校验后的多个跳点。
 
-转发使用 ssh -N 和 ExitOnForwardFailure。客户端指定回环监听，远端转发的最终绑定由服务端 GatewayPorts 策略控制。
+控制套接字按服务器 UUID 和连接参数隔离，已打开的交互连接可供后台任务复用。终端提供标签重开、手动重连和搜索。重开使用新的 SSH 连接。持久的远端 shell 可由用户用 tmux 保持。自动重连、密码从 Keychain 认证及应用独立信任库仍需实现。
+
+转发使用独立 OpenSSH ControlMaster 和 ExitOnForwardFailure，确认控制套接字后显示已建立。支持回环 Local、Remote、Dynamic 转发及可选自动重试。远端转发绑定最终受服务器 GatewayPorts 策略控制。

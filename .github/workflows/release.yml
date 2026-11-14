@@ -13,6 +13,7 @@ jobs:
         with:
           persist-credentials: false
       - run: swift test
+      - run: bash scripts/ssh-integration.sh
       - name: Sign, package and notarize
         env:
           MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
@@ -36,9 +37,11 @@ jobs:
           security import "$certificate" -P "$MAC_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
           bash scripts/package.sh
+          codesign --sign "$MACTERM_SIGN_IDENTITY" --timestamp dist/MacTerm.dmg
           xcrun notarytool submit dist/MacTerm.dmg --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
           xcrun stapler staple dist/MacTerm.dmg
           xcrun stapler validate dist/MacTerm.dmg
+          bash scripts/verify-package.sh
       - uses: actions/upload-artifact@v4
         with:
           name: MacTerm-signed-notarized-arm64

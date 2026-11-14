@@ -318,6 +318,10 @@ struct TransferPage: View {
                     }.buttonStyle(.borderless)
                     if let progress = transfers.progress[item.id], progress.total > 0 {
                         ProgressView(value: Double(progress.completed), total: Double(progress.total))
+                        if let rate = transfers.speed[item.id] {
+                            Text(rate.formatted(.number.precision(.fractionLength(0))) + " B/s")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                     if let detail = item.detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
                 }
