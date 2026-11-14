@@ -2,12 +2,16 @@ import ConnectionCore
 import Domain
 import StorageCore
 import SwiftUI
+import TerminalCore
 import UniformTypeIdentifiers
 
 struct SettingsPage: View {
     let store: Store
     @Binding var fontSize: Double
     let onRestore: () async -> Void
+    @AppStorage("terminalCursor") private var cursor = TerminalCursor.block
+    @AppStorage("terminalScrollback") private var scrollback = 5000
+    @AppStorage("terminalAutoReconnect") private var automaticReconnect = false
     @State private var exporting = false
     @State private var importing = false
     @State private var restore: ConfigurationBackup?
@@ -17,6 +21,11 @@ struct SettingsPage: View {
     var body: some View {
         Form {
             Slider(value: $fontSize, in: 9...26, step: 1) { Text("终端字体大小 \(Int(fontSize))") }
+            Picker("终端光标", selection: $cursor) {
+                ForEach(TerminalCursor.allCases) { Text($0.rawValue).tag($0) }
+            }
+            Stepper("滚动缓冲区 \(scrollback) 行", value: $scrollback, in: 1000...30_000, step: 1000)
+            Toggle("SSH 异常断开后自动重连", isOn: $automaticReconnect)
             SwiftUI.Section("服务器配置备份") {
                 Text("备份包含服务器地址、用户和私钥路径。请将文件保存在受信任的位置。")
                     .foregroundStyle(.secondary)

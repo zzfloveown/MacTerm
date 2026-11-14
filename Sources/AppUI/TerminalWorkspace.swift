@@ -23,6 +23,9 @@ struct TerminalWorkspace: View {
     @Binding var current: UUID?
     @Binding var split: SplitMode
     let fontSize: Double
+    @AppStorage("terminalCursor") private var cursor = TerminalCursor.block
+    @AppStorage("terminalScrollback") private var scrollback = 5000
+    @AppStorage("terminalAutoReconnect") private var automaticReconnect = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,10 +78,12 @@ struct TerminalWorkspace: View {
                             Group {
                                 if let host = item.host,
                                    let terminal = try? SSHTerminal(host: host, fontSize: fontSize, command: item.command,
-                                                                  onExit: { onExit(item.id, attempt: item.attempt, code: $0) }) {
+                                                                  cursor: cursor, scrollback: scrollback,
+                                                onExit: { onExit(item.id, attempt: item.attempt, code: $0) }) {
                                     terminal
                                 } else if let executable = item.executable {
                                     SSHTerminal(executable: executable, arguments: item.command, fontSize: fontSize,
+                                                cursor: cursor, scrollback: scrollback,
                                                 onExit: { onExit(item.id, attempt: item.attempt, code: $0) })
                                 } else { Text("终端配置无效") }
                             }
@@ -97,8 +102,15 @@ struct TerminalWorkspace: View {
     }
 
     private func onExit(_ id: UUID, attempt: UUID, code: Int32?) {
-        if let index = sessions.firstIndex(where: { $0.id == id && $0.attempt == attempt }) {
-            sessions[index].exitStatus = code.map { "会话已断开（\($0)）" } ?? "会话已断开"
+        guard let index = sessions.firstIndex(where: { $0.id == id && $0.attempt == attempt }) else { return }
+        sessions[index].exitStatus = code.map { "会话已断开（\($0)）" } ?? "会话已断开"
+        guard automaticReconnect, code == 255, sessions[index].host != nil, sessions[index].command.isEmpty else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard automaticReconnect,
+                  let index = sessions.firstIndex(where: { $0.id == id && $0.attempt == attempt }) else { return }
+            sessions[index].attempt = UUID()
+            sessions[index].exitStatus = nil
         }
     }
 
