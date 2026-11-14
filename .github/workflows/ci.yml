@@ -57,3 +57,12 @@ jobs:
           fi
       - name: Exercise Linux SSH PTY, collector and Docker service
         run: bash scripts/linux-integration.sh
+  container-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exercise nerdctl and Kubernetes
+        run: bash scripts/container-integration.sh
