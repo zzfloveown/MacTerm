@@ -35,7 +35,7 @@ public struct TransferJob: Codable, Sendable {
 
 /// SQLite 写入由 GRDB 串行管理，运行时数据与凭据分开保存。
 public actor Store {
-    private let queue: DatabaseQueue
+    let queue: DatabaseQueue
 
     public init(url: URL? = nil) throws {
         if let url {
@@ -49,6 +49,26 @@ public actor Store {
                 CREATE TABLE ssh_hosts(id TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE transfer_tasks(id TEXT PRIMARY KEY NOT NULL, created_at REAL NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE app_settings(key TEXT PRIMARY KEY NOT NULL, value BLOB NOT NULL);
+                """)
+        }
+        migrator.registerMigration("monitorHistory") { db in
+            try db.execute(sql: """
+                CREATE TABLE monitor_history (
+                    host_id TEXT NOT NULL,
+                    sampled_at REAL NOT NULL,
+                    payload BLOB NOT NULL,
+                    PRIMARY KEY(host_id, sampled_at)
+                );
+                CREATE INDEX monitor_history_retention ON monitor_history(sampled_at);
+                """)
+        }
+        migrator.registerMigration("monitorAlerts") { db in
+            try db.execute(sql: """
+                CREATE TABLE monitor_alert_rules(host_id TEXT PRIMARY KEY NOT NULL, payload BLOB NOT NULL);
+                CREATE TABLE monitor_alert_events(
+                    id TEXT PRIMARY KEY NOT NULL, host_id TEXT NOT NULL, created_at REAL NOT NULL, payload BLOB NOT NULL
+                );
+                CREATE INDEX monitor_alert_events_host ON monitor_alert_events(host_id, created_at);
                 """)
         }
         try migrator.migrate(queue)

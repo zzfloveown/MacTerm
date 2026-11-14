@@ -1,54 +1,68 @@
-import AlertCore
 import Domain
-import MonitorCore
 import SwiftUI
+import UserNotifications
 
 struct AlertPage: View {
     let host: SSHHost
-    @State private var running = false
-    @State private var limit = 85.0
-    @State private var duration = 15.0
-    @State private var events: [Event] = []
+    @ObservedObject var monitor: HostMonitor
+    @State private var rules = MonitorAlertRule.defaults
     @State private var error = ""
-
-    struct Event: Identifiable {
-        let id = UUID()
-        let time: Date
-        let message: String
-    }
+    @State private var loaded = false
 
     var body: some View {
         VStack(alignment: .leading) {
             HStack {
                 Text(host.label).font(.title2)
                 Spacer()
-                Toggle("内存告警", isOn: $running).toggleStyle(.switch)
-            }
-            Slider(value: $limit, in: 1...100, step: 1) { Text("内存阈值 \(Int(limit))%") }.disabled(running)
-            Slider(value: $duration, in: 0...120, step: 5) { Text("持续 \(Int(duration)) 秒") }.disabled(running)
-            if !error.isEmpty { Text(error).foregroundStyle(.secondary) }
-            List(events) { event in
-                HStack { Text(event.message); Spacer(); Text(event.time.formatted()) }
-            }
-        }.task(id: running) { if running { await poll() } }
-    }
-
-    private func poll() async {
-        var threshold = Threshold()
-        let engine = MonitorEngine()
-        while !Task.isCancelled {
-            do {
-                let sample = try await engine.sample(host)
-                try Task.checkCancellation()
-                error = ""
-                if let memory = sample.usedMemory,
-                   let event = threshold.update(memory, limit: limit / 100, duration: duration, at: sample.time) {
-                    events.insert(Event(time: sample.time, message: "内存告警\(event.rawValue)"), at: 0)
-                    if events.count > 200 { events.removeLast() }
+                Button("启用 macOS 通知") {
+                    Task {
+                        do {
+                            let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+                            error = allowed ? "" : "请在系统设置中允许 MacTerm 通知。"
+                        } catch { self.error = error.localizedDescription }
+                    }
                 }
-            } catch is CancellationError { return }
-            catch { self.error = error.localizedDescription; threshold = Threshold() }
-            do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                Button("保存规则") {
+                    Task {
+                        do {
+                            try await monitor.store.save(rules, for: host.id)
+                            monitor.setRules(rules)
+                            if rules.contains(where: \.enabled) { monitor.start(host, interval: 5) }
+                            error = ""
+                        } catch { self.error = error.localizedDescription }
+                    }
+                }.disabled(!loaded || rules.contains { !$0.limit.isFinite || !$0.duration.isFinite
+                    || !(0...$0.metric.maximum).contains($0.limit) || !(0...3600).contains($0.duration) })
+            }
+            if !error.isEmpty { Text(error).foregroundStyle(.red) }
+            if !monitor.status.isEmpty { Text(monitor.status).foregroundStyle(.red) }
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                GridRow {
+                    Text("指标").gridColumnAlignment(.leading)
+                    Text("阈值")
+                    Text("持续秒数")
+                }.foregroundStyle(.secondary)
+                ForEach($rules) { $rule in
+                    GridRow {
+                        Toggle(rule.metric.rawValue, isOn: $rule.enabled)
+                        HStack {
+                            TextField("阈值", value: $rule.limit, format: .number)
+                                .disabled(rule.metric == .disconnected).frame(width: 95)
+                            Text(rule.metric.unit).foregroundStyle(.secondary)
+                        }
+                        TextField("秒数", value: $rule.duration, format: .number).frame(width: 95)
+                    }
+                }
+            }.disabled(!loaded)
+            List(monitor.events) { event in
+                HStack { Text(event.message); Spacer(); Text(event.date.formatted()) }
+            }
+        }.task {
+            do {
+                rules = try await monitor.store.alertRules(for: host.id)
+                try await monitor.loadAlerts(for: host.id)
+                loaded = true
+            } catch { self.error = error.localizedDescription }
         }
     }
 }

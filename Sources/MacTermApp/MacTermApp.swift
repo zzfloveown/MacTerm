@@ -9,14 +9,14 @@ struct MacTermApp: App {
     private let setup = Result {
         let folder = try Store.applicationSupport()
         let store = try Store(url: folder.appendingPathComponent("MacTerm.sqlite"))
-        return (store, TransferQueue(store: store))
+        return (store, TransferQueue(store: store), MonitorRegistry(store: store))
     }
 
     var body: some Scene {
         WindowGroup("MacTerm") {
             switch setup {
-            case .success(let (store, transfers)):
-                Workspace(store: store, transfers: transfers)
+            case .success(let (store, transfers, monitors)):
+                Workspace(store: store, transfers: transfers, monitors: monitors)
                     .frame(minWidth: 850, minHeight: 540)
             case .failure:
                 ContentUnavailableView("无法打开数据库", systemImage: "externaldrive.badge.exclamationmark",

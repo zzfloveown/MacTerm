@@ -28,6 +28,7 @@ enum Section: String, CaseIterable, Identifiable {
 
 public struct Workspace: View {
     let store: Store
+    let monitors: MonitorRegistry
     @ObservedObject var transfers: TransferQueue
     @State private var hosts: [SSHHost] = []
     @State private var hostID: UUID?
@@ -40,9 +41,10 @@ public struct Workspace: View {
     @State private var split: SplitMode = .none
     @AppStorage("terminalFontSize") private var fontSize = 13.0
 
-    public init(store: Store, transfers: TransferQueue) {
+    public init(store: Store, transfers: TransferQueue, monitors: MonitorRegistry) {
         self.store = store
         self.transfers = transfers
+        self.monitors = monitors
     }
 
     var host: SSHHost? { hosts.first { $0.id == hostID } }
@@ -136,7 +138,7 @@ public struct Workspace: View {
                     Button("编辑服务器") { editing = host }
                     Button("移除本地配置", role: .destructive) {
                         Task {
-                            do { try await store.delete(host.id); hostID = nil; await refresh() }
+                            do { try await store.delete(host.id); monitors.remove(host.id); hostID = nil; await refresh() }
                             catch { failure = error.localizedDescription }
                         }
                     }
@@ -145,7 +147,7 @@ public struct Workspace: View {
         case .files:
             if let host { FileWorkspace(host: host, transfers: transfers).id(host.id) } else { chooseHost }
         case .monitor:
-            if let host { MonitorPage(host: host).id(host.id) } else { chooseHost }
+            if let host { MonitorPage(host: host, monitor: monitors.session(for: host)).id(host.id) } else { chooseHost }
         case .docker:
             if let host { ContainerPage(host: host).id(host.id) } else { chooseHost }
         case .kubernetes: KubernetesPage()
@@ -156,7 +158,7 @@ public struct Workspace: View {
                 .formStyle(.grouped)
         case .tunnels: TunnelPage(host: host).id(host?.id)
         case .alerts:
-            if let host { AlertPage(host: host).id(host.id) } else { chooseHost }
+            if let host { AlertPage(host: host, monitor: monitors.session(for: host)).id(host.id) } else { chooseHost }
         case .terminal: EmptyView()
         }
     }
