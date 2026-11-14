@@ -75,7 +75,14 @@ final class HostMonitor: ObservableObject {
     func start(_ host: SSHHost, interval: Int) {
         guard task == nil else { return }
         running = true
-        task = Task { await collect(host, interval: interval) }
+        task = Task {
+            await collect(host, interval: interval)
+            // 关闭连接需要在未取消的任务中执行。
+            let engine = engine
+            await Task.detached { await engine.close(host) }.value
+            running = false
+            task = nil
+        }
     }
 
     func stop() {
@@ -83,10 +90,6 @@ final class HostMonitor: ObservableObject {
     }
 
     private func collect(_ host: SSHHost, interval: Int) async {
-        defer {
-            running = false
-            task = nil
-        }
         while !Task.isCancelled {
             do {
                 let next = try await engine.sample(host)

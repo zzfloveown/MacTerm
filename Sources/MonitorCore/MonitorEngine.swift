@@ -143,9 +143,19 @@ public struct MonitorEngine: Sendable {
 
     public init(transport: any SSHTransport = OpenSSHTransport()) { self.transport = transport }
 
+    public func close(_ host: SSHHost) async {
+        if let ssh = transport as? OpenSSHTransport { await ssh.closeMonitoring(on: host) }
+    }
+
     public func sample(_ host: SSHHost) async throws -> Sample {
         let script = Self.collector
-        let text = try await transport.execute(on: host, arguments: ["sh", "-c", script])
+        let args = ["sh", "-c", script]
+        let text: String
+        if let ssh = transport as? OpenSSHTransport {
+            text = try await ssh.monitor(on: host, arguments: args)
+        } else {
+            text = try await transport.execute(on: host, arguments: args)
+        }
         return try Sample.parse(text)
     }
 

@@ -31,6 +31,24 @@ public enum OpenSSHArguments {
         return args
     }
 
+    public static func terminalConnectionExists(_ host: SSHHost) -> Bool {
+        guard let socket = SSHControlPath.forHost(host) else { return false }
+        return FileManager.default.fileExists(atPath: socket)
+    }
+
+    public static func monitoring(_ host: SSHHost) throws -> [String] {
+        let args = try common(host, interactive: false, sharesConnection: false)
+        guard let socket = SSHControlPath.forHost(host, scope: "monitor") else { return args }
+        return args + ["-o", "ControlPath=\(socket)", "-o", "ControlMaster=auto", "-o", "ControlPersist=20"]
+    }
+
+    public static func closeMonitoring(_ host: SSHHost) -> [String]? {
+        guard let socket = SSHControlPath.forHost(host, scope: "monitor"),
+              FileManager.default.fileExists(atPath: socket),
+              (try? validate(host)) != nil else { return nil }
+        return ["-F", "/dev/null", "-S", socket, "-O", "exit", "--", host.address]
+    }
+
     public static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
