@@ -44,7 +44,7 @@ private extension SFTPChannel {
         while offset < current.size {
             try checkCancellation()
             let data = try readLocal(file, length: chunkSize(current.size - offset))
-            _ = try request(6, payload: .field(handle) + .offset(offset) + .field(data), expecting: 101)
+            _ = try request(6, payload: Data.field(handle) + Data.offset(offset) + Data.field(data), expecting: 101)
             offset += UInt64(data.count)
             progress(TransferProgress(completed: offset, total: current.size))
         }
@@ -94,19 +94,19 @@ private extension SFTPChannel {
         try? manager.removeItem(at: partial)
     }
 
-    func pathField(_ value: String) -> Data { .field(Data(value.utf8)) }
+    func pathField(_ value: String) -> Data { Data.field(Data(value.utf8)) }
 
     func open(_ path: String, flags: UInt32) throws -> Data {
-        var response = try request(3, payload: pathField(path) + .word(flags) + .word(4) + .word(0o600), expecting: 102)
+        var response = try request(3, payload: pathField(path) + Data.word(flags) + Data.word(4) + Data.word(0o600), expecting: 102)
         return try response.field()
     }
 
     func close(_ handle: Data) throws {
-        _ = try request(4, payload: .field(handle), expecting: 101)
+        _ = try request(4, payload: Data.field(handle), expecting: 101)
     }
 
     func attributes(_ value: Data, kind: UInt8) throws -> FileAttributes {
-        var packet = try request(kind, payload: .field(value), expecting: 105)
+        var packet = try request(kind, payload: Data.field(value), expecting: 105)
         return try packet.attributes()
     }
 
@@ -156,7 +156,7 @@ private extension SFTPChannel {
     }
 
     func readRemote(_ handle: Data, offset: UInt64, length: Int) throws -> Data {
-        var packet = try request(5, payload: .field(handle) + .offset(offset) + .word(UInt32(length)), expecting: 103)
+        var packet = try request(5, payload: Data.field(handle) + Data.offset(offset) + Data.word(UInt32(length)), expecting: 103)
         let contents = try packet.field()
         guard !contents.isEmpty, contents.count <= length else { throw SFTPDirectoryError.invalidReply }
         return contents

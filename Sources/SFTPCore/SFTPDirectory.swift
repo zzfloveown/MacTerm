@@ -16,12 +16,12 @@ extension SFTPClient {
     public func entries(_ directory: String, on host: SSHHost) async throws -> [SFTPEntry] {
         try Self.validateProtocolPath(directory)
         return try await withChannel(host) { channel in
-            var opened = try channel.request(11, payload: .field(Data(directory.utf8)), expecting: 102)
+            var opened = try channel.request(11, payload: Data.field(Data(directory.utf8)), expecting: 102)
             let handle = try opened.field()
             var entries: [SFTPEntry] = []
             while true {
                 do {
-                    var response = try channel.request(12, payload: .field(handle), expecting: 104)
+                    var response = try channel.request(12, payload: Data.field(handle), expecting: 104)
                     let count = try response.word()
                     guard count > 0, count <= 50_000, entries.count + Int(count) <= 250_000 else {
                         throw SFTPDirectoryError.invalidReply
@@ -38,7 +38,7 @@ extension SFTPClient {
                     }
                 } catch SFTPDirectoryError.status(1) { break }
             }
-            _ = try channel.request(4, payload: .field(handle), expecting: 101)
+            _ = try channel.request(4, payload: Data.field(handle), expecting: 101)
             return entries
         }
     }
@@ -48,12 +48,12 @@ extension SFTPClient {
             throw SFTPDirectoryError.invalidPath
         }
         try await withChannel(host) { channel in
-            _ = try channel.request(9, payload: .field(Data(path.utf8)) + .word(4) + .word(mode), expecting: 101)
+            _ = try channel.request(9, payload: Data.field(Data(path.utf8)) + Data.word(4) + Data.word(mode), expecting: 101)
         }
     }
 
     public func createDirectory(_ path: String, on host: SSHHost) async throws {
-        try await mutate(14, paths: [path], suffix: .word(0), on: host)
+        try await mutate(14, paths: [path], suffix: Data.word(0), on: host)
     }
 
     public func rename(_ original: String, to destination: String, on host: SSHHost) async throws {
@@ -70,7 +70,7 @@ extension SFTPClient {
 
     private func mutate(_ kind: UInt8, paths: [String], suffix: Data = Data(), on host: SSHHost) async throws {
         try paths.forEach(Self.validateProtocolPath)
-        let payload = paths.reduce(into: Data()) { $0.append(.field(Data($1.utf8))) } + suffix
+        let payload = paths.reduce(into: Data()) { $0.append(Data.field(Data($1.utf8))) } + suffix
         try await withChannel(host) { channel in
             _ = try channel.request(kind, payload: payload, expecting: 101)
         }
@@ -140,7 +140,7 @@ final class SFTPChannel: @unchecked Sendable {
             throw error
         }
         do {
-            try send(Data([1]) + .word(3))
+            try send(Data([1]) + Data.word(3))
             var version = Packet(try receive())
             guard try version.byte() == 2, try version.word() == 3 else { throw SFTPDirectoryError.invalidReply }
         } catch {
@@ -174,7 +174,7 @@ final class SFTPChannel: @unchecked Sendable {
     func request(_ kind: UInt8, payload: Data, expecting reply: UInt8) throws -> Packet {
         try checkCancellation()
         nextID &+= 1
-        try send(Data([kind]) + .word(nextID) + payload)
+        try send(Data([kind]) + Data.word(nextID) + payload)
         var packet = Packet(try receive())
         let type = try packet.byte()
         guard try packet.word() == nextID else { throw SFTPDirectoryError.invalidReply }
