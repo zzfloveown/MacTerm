@@ -1,0 +1,37 @@
+name: ARM64 macOS CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify runner
+        run: |
+          test "$(uname -m)" = arm64
+          swift --version
+      - name: Unit tests
+        run: swift test
+      - name: Package
+        if: github.event_name != 'pull_request'
+        run: bash scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: MacTerm-arm64
+          path: dist/MacTerm.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: Package-resolved
+          path: Package.resolved
+          if-no-files-found: error

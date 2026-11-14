@@ -1,0 +1,21 @@
+name: Security checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check tracked files for private key material
+        run: |
+          set +e
+          git grep -Il -E -e '-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----' -- . ':!.github/workflows/security.yml'
+          status=$?
+          test "$status" -eq 1

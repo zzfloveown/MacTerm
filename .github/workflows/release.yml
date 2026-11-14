@@ -1,0 +1,46 @@
+name: ARM64 Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: swift test
+      - name: Sign, package and notarize
+        env:
+          MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          MACTERM_SIGN_IDENTITY: ${{ secrets.MAC_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          export MACTERM_VERSION="${GITHUB_REF_NAME#v}"
+          : "${MAC_CERTIFICATE:?}" "${MAC_CERTIFICATE_PASSWORD:?}" "${MACTERM_SIGN_IDENTITY:?}"
+          : "${APPLE_ID:?}" "${APPLE_TEAM_ID:?}" "${APPLE_APP_PASSWORD:?}"
+          keychain="$RUNNER_TEMP/macterm.keychain-db"
+          certificate="$RUNNER_TEMP/macterm.p12"
+          password="$(openssl rand -hex 32)"
+          trap 'security delete-keychain "$keychain" || true; rm -f "$certificate"' EXIT
+          printf '%s' "$MAC_CERTIFICATE" | base64 -D > "$certificate"
+          security create-keychain -p "$password" "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security import "$certificate" -P "$MAC_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          bash scripts/package.sh
+          xcrun notarytool submit dist/MacTerm.dmg --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/MacTerm.dmg
+          xcrun stapler validate dist/MacTerm.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MacTerm-signed-notarized-arm64
+          path: dist/MacTerm.dmg
+          if-no-files-found: error
