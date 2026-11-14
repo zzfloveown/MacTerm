@@ -29,7 +29,9 @@ jobs:
         if: github.event_name != 'pull_request'
         with:
           name: MacTerm-arm64
-          path: dist/MacTerm.dmg
+          path: |
+            dist/MacTerm.dmg
+            dist/MacTerm.app.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'

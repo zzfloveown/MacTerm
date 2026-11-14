@@ -5,7 +5,7 @@ set -euo pipefail
 swift build -c release --product MacTerm
 products="$(swift build -c release --show-bin-path)"
 app="dist/MacTerm.app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+mkdir -p "$app/Contents/MacOS"
 cp "$products/MacTerm" "$app/Contents/MacOS/"
 cp packaging/Info.plist "$app/Contents/"
 shopt -s nullglob
@@ -24,5 +24,9 @@ else
     codesign --force --timestamp --options runtime --sign "$identity" "$app"
 fi
 codesign --verify --strict "$app"
-hdiutil create -overwrite -volname MacTerm -srcfolder "$app" -format UDZO dist/MacTerm.dmg
+mkdir -p dist/image
+ditto "$app" dist/image/MacTerm.app
+ln -sfn /Applications dist/image/Applications
+hdiutil create -ov -volname MacTerm -srcfolder dist/image -format UDZO dist/MacTerm.dmg
+ditto -c -k --keepParent "$app" dist/MacTerm.app.zip
 hdiutil verify dist/MacTerm.dmg
