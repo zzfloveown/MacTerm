@@ -63,7 +63,7 @@ public enum ProcessRunner {
             process.standardOutput = out
             process.standardError = err
             process.standardInput = source
-            process.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C"]) { _, value in value }
+            process.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "en_US.UTF-8"]) { _, value in value }
             try launch()
             process.waitUntilExit()
             try checkCancellation()

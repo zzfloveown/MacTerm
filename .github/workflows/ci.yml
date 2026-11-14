@@ -20,6 +20,8 @@ jobs:
           swift --version
       - name: Unit tests
         run: swift test
+      - name: SSH and SFTP integration
+        run: bash scripts/ssh-integration.sh
       - name: Package
         if: github.event_name != 'pull_request'
         run: bash scripts/package.sh

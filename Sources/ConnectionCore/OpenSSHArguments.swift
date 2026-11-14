@@ -4,9 +4,9 @@ import Foundation
 public enum OpenSSHArguments {
     /// 只接受主机名、IPv4 或无作用域 IPv6，阻止配置插值及参数歧义。
     public static func validate(_ host: SSHHost) throws {
-        let user = #"^[A-Za-z0-9_][A-Za-z0-9_.-]*$"#
-        let address = #"^(?:[A-Za-z0-9][A-Za-z0-9.-]*|[a-fA-F0-9]*:[a-fA-F0-9:]+)$"#
-        let jump = #"^(?:[A-Za-z0-9_][A-Za-z0-9_.-]*@)?(?:[A-Za-z0-9][A-Za-z0-9.-]*|\[[a-fA-F0-9:]+\])(?::[0-9]{1,5})?$"#
+        let user = #"^[A-Za-z0-9_][A-Za-z0-9_.-]*\z"#
+        let address = #"^(?:[A-Za-z0-9][A-Za-z0-9.-]*|[a-fA-F0-9]*:[a-fA-F0-9:]+)\z"#
+        let jump = #"^(?:[A-Za-z0-9_][A-Za-z0-9_.-]*@)?(?:[A-Za-z0-9][A-Za-z0-9.-]*|\[[a-fA-F0-9:]+\])(?::[0-9]{1,5})?\z"#
         guard host.user.range(of: user, options: .regularExpression) != nil,
               host.address.range(of: address, options: .regularExpression) != nil,
               (1...65535).contains(host.port),
