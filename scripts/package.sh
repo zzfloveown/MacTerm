@@ -5,12 +5,12 @@ set -euo pipefail
 swift build -c release --product MacTerm
 products="$(swift build -c release --show-bin-path)"
 app="dist/MacTerm.app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$products/MacTerm" "$app/Contents/MacOS/"
 cp packaging/Info.plist "$app/Contents/"
 shopt -s nullglob
 for resource in "$products"/*.bundle; do
-    ditto "$resource" "$app/$(basename "$resource")"
+    ditto "$resource" "$app/Contents/Resources/$(basename "$resource")"
 done
 if [[ -n "${MACTERM_VERSION:-}" ]]; then
     [[ "$MACTERM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
