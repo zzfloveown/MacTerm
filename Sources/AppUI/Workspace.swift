@@ -76,7 +76,11 @@ public struct Workspace: View {
         } detail: {
             VStack(spacing: 0) {
                 ZStack {
-                    if section != .terminal && section != .tunnels { page.padding() }
+                    if section != .terminal && section != .tunnels && section != .files { page.padding() }
+                    SFTPTabs(selectedHost: host, transfers: transfers).padding()
+                        .opacity(section == .files ? 1 : 0)
+                        .allowsHitTesting(section == .files)
+                        .accessibilityHidden(section != .files)
                     TunnelPage(host: host).id(host?.id)
                         .opacity(section == .tunnels ? 1 : 0)
                         .allowsHitTesting(section == .tunnels)
@@ -160,8 +164,7 @@ public struct Workspace: View {
                     }
                 }.formStyle(.grouped)
             } else { chooseHost }
-        case .files:
-            if let host { FileWorkspace(host: host, transfers: transfers).id(host.id) } else { chooseHost }
+        case .files: EmptyView()
         case .monitor:
             if let host { MonitorPage(host: host, monitor: monitors.session(for: host)).id(host.id) } else { chooseHost }
         case .docker:
