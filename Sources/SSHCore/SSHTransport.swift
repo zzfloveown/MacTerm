@@ -3,14 +3,14 @@ import Domain
 import Infrastructure
 
 public protocol SSHTransport: Sendable {
-    func execute(on host: Host, arguments: [String]) async throws -> String
+    func execute(on host: SSHHost, arguments: [String]) async throws -> String
 }
 
 public struct OpenSSHTransport: SSHTransport {
     public init() {}
 
     /// 渲染远端命令时独立转义每个参数，后台调用只允许已验证的主机。
-    public func execute(on host: Host, arguments: [String]) async throws -> String {
+    public func execute(on host: SSHHost, arguments: [String]) async throws -> String {
         guard let command = arguments.first, !command.isEmpty, !command.hasPrefix("-"),
               arguments.allSatisfy({ !$0.utf8.contains(0) }) else {
             throw MacTermError("无效的远端命令。")

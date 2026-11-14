@@ -46,14 +46,14 @@ public actor Store {
         return folder
     }
 
-    public func hosts() throws -> [Host] {
+    public func hosts() throws -> [SSHHost] {
         try queue.read { db in
             try Data.fetchAll(db, sql: "SELECT payload FROM ssh_hosts ORDER BY label COLLATE NOCASE")
-                .map { try JSONDecoder().decode(Host.self, from: $0) }
+                .map { try JSONDecoder().decode(SSHHost.self, from: $0) }
         }
     }
 
-    public func save(_ host: Host) throws {
+    public func save(_ host: SSHHost) throws {
         let payload = try JSONEncoder().encode(host)
         try queue.write { db in
             try db.execute(sql: """

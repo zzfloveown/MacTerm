@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Host: Identifiable, Codable, Hashable, Sendable {
+public struct SSHHost: Identifiable, Codable, Hashable, Sendable {
     public var id: UUID
     public var name: String
     public var address: String

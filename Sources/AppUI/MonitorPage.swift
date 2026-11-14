@@ -5,7 +5,7 @@ import MonitorCore
 import SwiftUI
 
 struct MonitorPage: View {
-    let host: Host
+    let host: SSHHost
     @State private var sample: Sample?
     @State private var cpu: Double?
     @State private var network: [String] = []

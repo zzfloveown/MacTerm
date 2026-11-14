@@ -4,7 +4,7 @@ import KubernetesCore
 import SwiftUI
 
 struct ContainerPage: View {
-    let host: Host
+    let host: SSHHost
     let client = ContainerClient()
     @State private var engine: ContainerEngine?
     @State private var output = ""

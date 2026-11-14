@@ -8,12 +8,12 @@ import XCTest
 
 final class CoreTests: XCTestCase {
     func testConnectionSecurity() throws {
-        let host = Host(address: "example.invalid", user: "ops", jump: "ops@jump.invalid:2222")
+        let host = SSHHost(address: "example.invalid", user: "ops", jump: "ops@jump.invalid:2222")
         let batch = try OpenSSHArguments.common(host, interactive: false)
         XCTAssertTrue(batch.contains("StrictHostKeyChecking=yes"))
         XCTAssertTrue(batch.contains("BatchMode=yes"))
         XCTAssertTrue(try OpenSSHArguments.common(host, interactive: true).contains("StrictHostKeyChecking=ask"))
-        XCTAssertThrowsError(try OpenSSHArguments.validate(Host(address: "-oProxyCommand=bad", user: "ops")))
+        XCTAssertThrowsError(try OpenSSHArguments.validate(SSHHost(address: "-oProxyCommand=bad", user: "ops")))
         XCTAssertEqual(OpenSSHArguments.shellQuote("a'b"), "'a'\\''b'")
     }
 
@@ -26,7 +26,7 @@ final class CoreTests: XCTestCase {
 
     func testStoreMigrationAndCRUD() async throws {
         let store = try Store()
-        let host = Host(name: "Example", address: "example.invalid", user: "ops")
+        let host = SSHHost(name: "Example", address: "example.invalid", user: "ops")
         let empty = try await store.hosts()
         XCTAssertTrue(empty.isEmpty)
         try await store.save(host)

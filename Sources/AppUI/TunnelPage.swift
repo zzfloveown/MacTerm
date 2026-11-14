@@ -3,7 +3,7 @@ import SSHCore
 import SwiftUI
 
 struct TunnelPage: View {
-    let host: Host?
+    let host: SSHHost?
     @State private var mode: ForwardMode = .local
     @State private var port = 8080
     @State private var destination = "127.0.0.1"
@@ -32,7 +32,7 @@ struct TunnelPage: View {
         }.formStyle(.grouped).onDisappear { task?.cancel() }
     }
 
-    private func start(_ host: Host) {
+    private func start(_ host: SSHHost) {
         let mode = mode, port = port, destination = destination, destinationPort = destinationPort
         status = "SSH 转发进程运行中"
         task = Task {

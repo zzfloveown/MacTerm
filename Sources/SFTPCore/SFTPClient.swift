@@ -6,7 +6,7 @@ import Infrastructure
 public struct SFTPClient: Sendable {
     public init() {}
 
-    public func list(_ directory: String, on host: Host) async throws -> [String] {
+    public func list(_ directory: String, on host: SSHHost) async throws -> [String] {
         let output = try await batch("ls -1a \(Self.path(directory))", on: host)
         return output.split(separator: "\n").drop(while: { !$0.hasPrefix("sftp> ls ") }).dropFirst().compactMap { line in
             guard !line.hasPrefix("sftp>") else { return nil }
@@ -15,23 +15,23 @@ public struct SFTPClient: Sendable {
         }
     }
 
-    public func upload(local: String, remote: String, on host: Host) async throws {
+    public func upload(local: String, remote: String, on host: SSHHost) async throws {
         _ = try await batch("put \(Self.path(local)) \(Self.path(remote))", on: host)
     }
 
-    public func download(remote: String, local: String, on host: Host) async throws {
+    public func download(remote: String, local: String, on host: SSHHost) async throws {
         _ = try await batch("get \(Self.path(remote)) \(Self.path(local))", on: host)
     }
 
-    public func createDirectory(_ path: String, on host: Host) async throws {
+    public func createDirectory(_ path: String, on host: SSHHost) async throws {
         _ = try await batch("mkdir \(Self.path(path))", on: host)
     }
 
-    public func rename(_ original: String, to destination: String, on host: Host) async throws {
+    public func rename(_ original: String, to destination: String, on host: SSHHost) async throws {
         _ = try await batch("rename \(Self.path(original)) \(Self.path(destination))", on: host)
     }
 
-    public func deleteFile(_ path: String, on host: Host) async throws {
+    public func deleteFile(_ path: String, on host: SSHHost) async throws {
         _ = try await batch("rm \(Self.path(path))", on: host)
     }
 
@@ -45,7 +45,7 @@ public struct SFTPClient: Sendable {
         return "\"\(path)\""
     }
 
-    private func batch(_ command: String, on host: Host) async throws -> String {
+    private func batch(_ command: String, on host: SSHHost) async throws -> String {
         let args = try OpenSSHArguments.common(host, interactive: false)
         let result = try await ProcessRunner.run("/usr/bin/sftp", args + ["-b", "-", "--", host.address],
                                                  input: Data((command + "\n").utf8))

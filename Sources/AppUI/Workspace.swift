@@ -27,10 +27,10 @@ enum Section: String, CaseIterable, Identifiable {
 
 public struct Workspace: View {
     let store: Store
-    @State private var hosts: [Host] = []
+    @State private var hosts: [SSHHost] = []
     @State private var hostID: UUID?
     @State private var section: Section? = .dashboard
-    @State private var editing: Host?
+    @State private var editing: SSHHost?
     @State private var failure = ""
     @State private var sessions: [TerminalSession] = []
     @State private var current: UUID?
@@ -39,7 +39,7 @@ public struct Workspace: View {
 
     public init(store: Store) { self.store = store }
 
-    var host: Host? { hosts.first { $0.id == hostID } }
+    var host: SSHHost? { hosts.first { $0.id == hostID } }
 
     public var body: some View {
         NavigationSplitView {
@@ -78,7 +78,7 @@ public struct Workspace: View {
             }
             .navigationTitle(section?.rawValue ?? "MacTerm")
             .toolbar {
-                Button("添加服务器", systemImage: "plus") { editing = Host() }
+                Button("添加服务器", systemImage: "plus") { editing = SSHHost() }
                 Button("连接", systemImage: "terminal") {
                     if let host { connect(host) }
                 }.disabled(host == nil).keyboardShortcut("t", modifiers: .command)
@@ -152,7 +152,7 @@ public struct Workspace: View {
         ContentUnavailableView("请在侧边栏选择服务器", systemImage: "server.rack")
     }
 
-    private func connect(_ host: Host) {
+    private func connect(_ host: SSHHost) {
         let tab = TerminalSession(host: host)
         sessions.append(tab)
         current = tab.id

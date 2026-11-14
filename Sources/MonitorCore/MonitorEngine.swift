@@ -80,7 +80,7 @@ public struct MonitorEngine: Sendable {
 
     public init(transport: any SSHTransport = OpenSSHTransport()) { self.transport = transport }
 
-    public func sample(_ host: Host) async throws -> Sample {
+    public func sample(_ host: SSHHost) async throws -> Sample {
         let script = """
         export LC_ALL=C
         for path in /proc/stat /proc/meminfo /proc/net/dev /proc/loadavg; do
@@ -93,7 +93,7 @@ public struct MonitorEngine: Sendable {
         return try Sample.parse(text)
     }
 
-    public func processes(_ host: Host) async throws -> String {
+    public func processes(_ host: SSHHost) async throws -> String {
         try await transport.execute(on: host, arguments: ["env", "LC_ALL=C", "ps", "-eo",
             "pid,user,comm,pcpu,pmem,etime,args", "--sort=-pcpu"])
     }

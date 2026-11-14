@@ -3,7 +3,7 @@ import Foundation
 
 public enum OpenSSHArguments {
     /// 只接受主机名、IPv4 或无作用域 IPv6，阻止配置插值及参数歧义。
-    public static func validate(_ host: Host) throws {
+    public static func validate(_ host: SSHHost) throws {
         let user = #"^[A-Za-z0-9_][A-Za-z0-9_.-]*$"#
         let address = #"^(?:[A-Za-z0-9][A-Za-z0-9.-]*|[a-fA-F0-9]*:[a-fA-F0-9:]+)$"#
         let jump = #"^(?:[A-Za-z0-9_][A-Za-z0-9_.-]*@)?(?:[A-Za-z0-9][A-Za-z0-9.-]*|\[[a-fA-F0-9:]+\])(?::[0-9]{1,5})?$"#
@@ -16,7 +16,7 @@ public enum OpenSSHArguments {
               }) else { throw MacTermError("请检查用户名、主机、端口、私钥绝对路径和跳板机。") }
     }
 
-    public static func common(_ host: Host, interactive: Bool) throws -> [String] {
+    public static func common(_ host: SSHHost, interactive: Bool) throws -> [String] {
         try validate(host)
         var args = ["-F", "/dev/null", "-o", "Port=\(host.port)",
                     "-o", "User=\(host.user)", "-o", "ConnectTimeout=10",

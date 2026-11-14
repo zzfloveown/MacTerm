@@ -4,7 +4,7 @@ import MonitorCore
 import SwiftUI
 
 struct AlertPage: View {
-    let host: Host
+    let host: SSHHost
     @State private var running = false
     @State private var limit = 85.0
     @State private var duration = 15.0

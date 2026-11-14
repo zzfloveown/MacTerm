@@ -8,7 +8,7 @@ public struct SSHTerminal: NSViewRepresentable {
     private let args: [String]
     private let fontSize: Double
 
-    public init(host: Host, fontSize: Double = 13, command: [String] = []) throws {
+    public init(host: SSHHost, fontSize: Double = 13, command: [String] = []) throws {
         args = try OpenSSHArguments.common(host, interactive: true)
             + ["-tt", "--", host.address]
             + (command.isEmpty ? [] : [command.map(OpenSSHArguments.shellQuote).joined(separator: " ")])

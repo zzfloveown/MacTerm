@@ -13,7 +13,7 @@ public struct TransferService: Sendable {
     }
 
     /// 先保存传输记录，再执行网络操作并写入终态。
-    public func copy(local: URL, remote: String, upload: Bool, host: Host) async throws {
+    public func copy(local: URL, remote: String, upload: Bool, host: SSHHost) async throws {
         var record = TransferRecord(name: local.lastPathComponent, state: "进行中")
         try await store.save(record)
         do {

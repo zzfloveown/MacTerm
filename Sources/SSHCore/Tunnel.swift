@@ -8,11 +8,11 @@ public enum ForwardMode: String, CaseIterable, Sendable {
 
 extension OpenSSHTransport {
     /// 转发仅绑定回环接口，前台进程在调用任务取消时终止。
-    public func forward(on host: Host, mode: ForwardMode, port: Int, destination: String, destinationPort: Int) async throws {
+    public func forward(on host: SSHHost, mode: ForwardMode, port: Int, destination: String, destinationPort: Int) async throws {
         guard (1...65535).contains(port) else { throw MacTermError("本地或远端监听端口无效。") }
         var mapping = "127.0.0.1:\(port)"
         if mode != .dynamic {
-            try OpenSSHArguments.validate(Host(address: destination, user: "check", port: destinationPort))
+            try OpenSSHArguments.validate(SSHHost(address: destination, user: "check", port: destinationPort))
             let target = destination.contains(":") ? "[\(destination)]" : destination
             mapping += ":\(target):\(destinationPort)"
         }

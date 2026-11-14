@@ -6,7 +6,7 @@ import SwiftUI
 import TransferCore
 
 struct FileWorkspace: View {
-    let host: Host
+    let host: SSHHost
     let store: Store
     @State private var local = FileManager.default.homeDirectoryForCurrentUser.path
     @State private var remote = "/"

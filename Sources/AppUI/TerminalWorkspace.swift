@@ -4,7 +4,7 @@ import TerminalCore
 
 struct TerminalSession: Identifiable {
     var id = UUID()
-    var host: Host
+    var host: SSHHost
 }
 
 enum SplitMode: String, CaseIterable {

@@ -5,8 +5,8 @@ import StorageCore
 import SwiftUI
 
 struct HostEditor: View {
-    @State var host: Host
-    var save: (Host) async throws -> Void
+    @State var host: SSHHost
+    var save: (SSHHost) async throws -> Void
     @State private var failure = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -37,7 +37,7 @@ struct HostEditor: View {
 }
 
 struct KeyPage: View {
-    let host: Host?
+    let host: SSHHost?
     @State private var password = ""
     @State private var status = ""
 
