@@ -25,6 +25,9 @@ jobs:
       - name: Package
         if: github.event_name != 'pull_request'
         run: bash scripts/package.sh
+      - name: Verify packaged app launch
+        if: github.event_name != 'pull_request'
+        run: bash scripts/verify-package.sh
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:

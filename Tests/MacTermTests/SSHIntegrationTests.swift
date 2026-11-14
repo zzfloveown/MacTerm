@@ -1,10 +1,45 @@
 import Domain
 import Foundation
+import Infrastructure
 import SFTPCore
 import SSHCore
 import XCTest
 
 final class SSHIntegrationTests: XCTestCase {
+    func testLocalForwardAndPortConflict() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let fixture = env["MACTERM_TEST_FIXTURE"],
+              let port = env["MACTERM_TEST_PORT"].flatMap(Int.init),
+              let user = env["MACTERM_TEST_USER"] else {
+            throw XCTSkip("需要 GitHub Actions 上的临时 sshd。")
+        }
+        let host = SSHHost(address: "127.0.0.1", user: user, port: port, identity: fixture + "/user")
+        let transport = OpenSSHTransport()
+        let ready = expectation(description: "SSH local forwarding established")
+        let forward = Task {
+            try await transport.forward(on: host, mode: .local, port: 40223, destination: "127.0.0.1",
+                                        destinationPort: port) { ready.fulfill() }
+        }
+        defer { forward.cancel() }
+        await fulfillment(of: [ready], timeout: 16)
+        let alias = "[127.0.0.1]:\(port)"
+        let result = try await ProcessRunner.run("/usr/bin/ssh", [
+            "-F", "/dev/null", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
+            "-o", "HostKeyAlias=\(alias)", "-o", "ConnectTimeout=5", "-o", "IdentitiesOnly=yes",
+            "-i", host.identity, "-p", "40223", "-l", user, "127.0.0.1", "printf ready"
+        ])
+        XCTAssertEqual(result.status, 0)
+        XCTAssertEqual(result.text, "ready")
+        do {
+            try await transport.forward(on: host, mode: .dynamic, port: 40223, destination: "",
+                                        destinationPort: 0)
+            XCTFail("Duplicate listener was accepted")
+        } catch { XCTAssertTrue(error is MacTermError) }
+        forward.cancel()
+        do { try await forward.value; XCTFail("Cancellation was ignored") }
+        catch is CancellationError {}
+    }
+
     func testSSHAndSFTPRoundTrip() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let fixture = environment["MACTERM_TEST_FIXTURE"],
