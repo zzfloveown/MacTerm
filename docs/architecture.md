@@ -7,3 +7,5 @@ GRDB 7.12.0 使用 MIT 许可证，需要 Swift 6.1，声明支持 macOS 10.15 �
 - [GRDB 版本和清单](https://github.com/groue/GRDB.swift/tree/v7.12.0)
 - [SwiftTerm 版本和清单](https://github.com/migueldeicaza/SwiftTerm/tree/v1.19.0)
 - [SwiftTerm PTY 缺陷报告](https://github.com/migueldeicaza/SwiftTerm/issues/833)
+
+SwiftTerm 1.19.0 包含 [终端安全公告修复提交](https://github.com/migueldeicaza/SwiftTerm/compare/a94e6b24d24ce9680ad79884992e1dff8e150a31...v1.19.0)。首次检查 GRDB 官方仓库未返回公开安全公告。该检查只覆盖官方仓库已披露的记录。

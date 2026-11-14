@@ -10,7 +10,7 @@ cp "$products/MacTerm" "$app/Contents/MacOS/"
 cp packaging/Info.plist "$app/Contents/"
 shopt -s nullglob
 for resource in "$products"/*.bundle; do
-    ditto "$resource" "$app/Contents/Resources/$(basename "$resource")"
+    ditto "$resource" "$app/$(basename "$resource")"
 done
 if [[ -n "${MACTERM_VERSION:-}" ]]; then
     [[ "$MACTERM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]

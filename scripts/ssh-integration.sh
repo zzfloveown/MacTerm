@@ -8,7 +8,7 @@ port=40222
 known="$HOME/.ssh/known_hosts"
 cleanup() {
     if [[ -f "$fixture/sshd.pid" ]]; then
-        sudo kill "$(cat "$fixture/sshd.pid")" || true
+        sudo kill "$(sudo cat "$fixture/sshd.pid")" || true
     fi
     if [[ -f "$fixture/known_hosts.original" ]]; then
         cp "$fixture/known_hosts.original" "$known"
@@ -31,6 +31,8 @@ HostKey $fixture/host
 PidFile $fixture/sshd.pid
 AuthorizedKeysFile $fixture/user.pub
 AllowUsers $(id -un)
+StrictModes no
+LogLevel VERBOSE
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 AuthenticationMethods publickey
@@ -38,9 +40,11 @@ PermitRootLogin no
 Subsystem sftp internal-sftp
 CONFIG
 sudo /usr/sbin/sshd -f "$fixture/sshd_config" -E "$fixture/sshd.log"
-trap 'tail -40 "$fixture/sshd.log" >&2 || true; cleanup' ERR
+trap 'sudo tail -40 "$fixture/sshd.log" >&2 || true' ERR
 
 printf '[127.0.0.1]:%s %s\n' "$port" "$(cat "$fixture/host.pub")" >> "$known"
 printf '[localhost]:%s %s\n' "$port" "$(cat "$fixture/wrong.pub")" >> "$known"
+ssh -4 -F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+    -o ConnectTimeout=5 -i "$fixture/user" -p "$port" "$(id -un)@127.0.0.1" true
 export MACTERM_TEST_FIXTURE="$fixture" MACTERM_TEST_PORT="$port" MACTERM_TEST_USER="$(id -un)"
 swift test --skip-build --filter SSHIntegrationTests
