@@ -1,6 +1,7 @@
 import ConnectionCore
 import Domain
 import Foundation
+import SSHCore
 import StorageCore
 import SwiftUI
 
@@ -38,6 +39,10 @@ struct HostEditor: View {
 
 struct KeyPage: View {
     let host: SSHHost?
+    let store: Store
+    let updated: () async -> Void
+    @State private var busy = false
+    @State private var publicKey = ""
     @State private var password = ""
     @State private var status = ""
 
@@ -46,6 +51,13 @@ struct KeyPage: View {
             if let host {
                 LabeledContent("服务器", value: host.label)
                 LabeledContent("私钥引用", value: host.identity.isEmpty ? "OpenSSH 默认身份或 Agent" : host.identity)
+                HStack {
+                    Button("生成 Ed25519 密钥") { generate(host) }
+                    Button("查看公钥") { query { try await SSHKeyService.publicKey(at: host.identity) } }
+                        .disabled(host.identity.isEmpty)
+                    Button("查看已验证指纹") { query { try await SSHKeyService.fingerprints(host) } }
+                }.disabled(busy)
+                if !publicKey.isEmpty { Text(publicKey).font(.system(.caption, design: .monospaced)).textSelection(.enabled) }
                 SecureField("存入 Keychain 的凭据", text: $password)
                 HStack {
                     Button("保存凭据") {
@@ -58,6 +70,27 @@ struct KeyPage: View {
                 if !status.isEmpty { Text(status) }
             } else { Text("请在侧边栏选择服务器") }
         }.formStyle(.grouped)
+    }
+
+    private func generate(_ host: SSHHost) {
+        query {
+            let url = try await SSHKeyService.generate(in: Store.applicationSupport())
+            var updatedHost = host
+            updatedHost.identity = url.path
+            try await store.save(updatedHost)
+            await updated()
+            return try await SSHKeyService.publicKey(at: url.path)
+        }
+    }
+
+    private func query(_ action: @escaping () async throws -> String) {
+        busy = true
+        status = ""
+        Task {
+            defer { busy = false }
+            do { publicKey = try await action() }
+            catch { status = error.localizedDescription }
+        }
     }
 
     private func perform(_ action: () throws -> Void) {

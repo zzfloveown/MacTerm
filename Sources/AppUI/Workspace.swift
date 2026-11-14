@@ -31,6 +31,7 @@ public struct Workspace: View {
     @State private var hostID: UUID?
     @State private var section: Section? = .dashboard
     @State private var editing: SSHHost?
+    @State private var importing = false
     @State private var failure = ""
     @State private var sessions: [TerminalSession] = []
     @State private var current: UUID?
@@ -79,12 +80,19 @@ public struct Workspace: View {
             .navigationTitle(section?.rawValue ?? "MacTerm")
             .toolbar {
                 Button("添加服务器", systemImage: "plus") { editing = SSHHost() }
+                Button("导入 SSH 配置", systemImage: "square.and.arrow.down") { importing = true }
                 Button("连接", systemImage: "terminal") {
                     if let host { connect(host) }
                 }.disabled(host == nil).keyboardShortcut("t", modifiers: .command)
             }
         }
         .task { await refresh() }
+        .background {
+            SSHImportView(presenting: $importing, existing: hosts) { imported in
+                try await store.save(imported)
+                await refresh()
+            }
+        }
         .sheet(item: $editing) { item in
             HostEditor(host: item) { updated in
                 try await store.save(updated)
@@ -137,7 +145,7 @@ public struct Workspace: View {
             if let host { ContainerPage(host: host).id(host.id) } else { chooseHost }
         case .kubernetes: KubernetesPage()
         case .transfers: TransferPage(store: store)
-        case .keys: KeyPage(host: host).id(host?.id)
+        case .keys: KeyPage(host: host, store: store, updated: { await refresh() }).id(host?.id)
         case .settings:
             Form { Slider(value: $fontSize, in: 9...26, step: 1) { Text("字体大小 \(Int(fontSize))") } }
                 .formStyle(.grouped)

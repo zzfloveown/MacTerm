@@ -10,7 +10,7 @@ public enum OpenSSHArguments {
         guard host.user.range(of: user, options: .regularExpression) != nil,
               host.address.range(of: address, options: .regularExpression) != nil,
               (1...65535).contains(host.port),
-              host.identity.isEmpty || (host.identity.hasPrefix("/") && !host.identity.contains("%")),
+              host.identity.isEmpty || (host.identity.hasPrefix("/") && !host.identity.contains("%") && !host.identity.utf8.contains(0)),
               host.jump.isEmpty || host.jump.split(separator: ",", omittingEmptySubsequences: false).allSatisfy({
                   $0.range(of: jump, options: .regularExpression) != nil
               }) else { throw MacTermError("请检查用户名、主机、端口、私钥绝对路径和跳板机。") }
@@ -23,6 +23,9 @@ public enum OpenSSHArguments {
                     "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2",
                     "-o", "StrictHostKeyChecking=\(interactive ? "ask" : "yes")",
                     "-o", "ForwardAgent=no", "-o", "BatchMode=\(interactive ? "no" : "yes")"]
+        if let socket = SSHControlPath.forHost(host) {
+            args += ["-o", "ControlPath=\(socket)", "-o", "ControlMaster=\(interactive ? "auto" : "no")"]
+        }
         if !host.identity.isEmpty { args += ["-i", host.identity, "-o", "IdentitiesOnly=yes"] }
         if !host.jump.isEmpty { args += ["-J", host.jump] }
         return args

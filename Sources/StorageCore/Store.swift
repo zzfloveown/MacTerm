@@ -54,12 +54,19 @@ public actor Store {
     }
 
     public func save(_ host: SSHHost) throws {
-        let payload = try JSONEncoder().encode(host)
+        try save([host])
+    }
+
+    public func save(_ hosts: [SSHHost]) throws {
         try queue.write { db in
-            try db.execute(sql: """
-                INSERT INTO ssh_hosts VALUES (?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET label = excluded.label, payload = excluded.payload
-                """, arguments: [host.id.uuidString, host.label, payload])
+            let encoder = JSONEncoder()
+            for host in hosts {
+                let payload = try encoder.encode(host)
+                try db.execute(sql: """
+                    INSERT INTO ssh_hosts VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET label = excluded.label, payload = excluded.payload
+                    """, arguments: [host.id.uuidString, host.label, payload])
+            }
         }
     }
 
