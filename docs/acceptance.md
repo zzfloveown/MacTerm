@@ -5,10 +5,10 @@
 - 提交 fc6805b 通过 macos-15 ARM64 Debug 和 Release 编译、单元测试、SSH/SFTP 集成、签名校验、DMG 挂载与应用进程启动。[云端构建](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200)
 - 该构建已生成 MacTerm.dmg 和 MacTerm.app.zip。[ARM64 产物](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200/artifacts/14125550194)
 - macOS Runner 的 OpenSSH 集成覆盖错误指纹拒绝、SSH 参数往返、双跳 ProxyJump、本地转发、远端转发、SOCKS5、端口冲突和取消。SFTP 覆盖中文文件名、目录项属性、权限、重命名、上传下载、字节校验、双向续传、拒绝损坏分片和失效文本版本。
-- Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310/job/132815313579)
-- 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310/job/132815313765)
-- 提交 a9094f6 的 ARM64 云端构建通过，14 项单元测试零失败（3 项依赖 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）；Release 构建、SSHAskPass 助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310)
-- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310/artifacts/14161768898)
+- Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198352)
+- 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198357)
+- 提交 94044e0 的 ARM64 云端构建通过，14 项单元测试零失败（3 项依赖 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）；Release 构建、SSHAskPass 助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322)
+- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/artifacts/14162113905)
 
 ## 新增功能
 
