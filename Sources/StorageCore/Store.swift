@@ -105,6 +105,11 @@ public actor Store {
     }
 
     public func save(_ hosts: [SSHHost]) throws {
+        try saveConfiguration(hosts: hosts, tunnels: [])
+    }
+
+    /// 在同一数据库事务中导入主机及其隧道，避免只写入一半备份。
+    public func saveConfiguration(hosts: [SSHHost], tunnels: [SSHTunnelProfile]) throws {
         try queue.write { db in
             let encoder = JSONEncoder()
             for host in hosts {
@@ -113,6 +118,13 @@ public actor Store {
                     INSERT INTO ssh_hosts VALUES (?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET label = excluded.label, payload = excluded.payload
                     """, arguments: [host.id.uuidString, host.label, payload])
+            }
+            for tunnel in tunnels {
+                let payload = try encoder.encode(tunnel)
+                try db.execute(sql: """
+                    INSERT INTO ssh_tunnels VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET host_id = excluded.host_id, payload = excluded.payload
+                    """, arguments: [tunnel.id.uuidString, tunnel.hostID.uuidString, payload])
             }
         }
     }
@@ -147,16 +159,7 @@ public actor Store {
     }
 
     public func save(_ tunnels: [SSHTunnelProfile]) throws {
-        try queue.write { db in
-            let encoder = JSONEncoder()
-            for tunnel in tunnels {
-                let payload = try encoder.encode(tunnel)
-                try db.execute(sql: """
-                    INSERT INTO ssh_tunnels VALUES (?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET host_id = excluded.host_id, payload = excluded.payload
-                    """, arguments: [tunnel.id.uuidString, tunnel.hostID.uuidString, payload])
-            }
-        }
+        try saveConfiguration(hosts: [], tunnels: tunnels)
     }
 
     public func deleteTunnel(_ id: UUID) throws {

@@ -93,14 +93,13 @@ struct SettingsPage: View {
                                 copy.id = identifiers[host.id]!
                                 return copy
                             }
-                            try await store.save(hosts)
                             let tunnels = backup.tunnels.map { tunnel in
                                 var copy = tunnel
                                 copy.id = UUID()
                                 copy.hostID = identifiers[tunnel.hostID]!
                                 return copy
                             }
-                            try await store.save(tunnels)
+                            try await store.saveConfiguration(hosts: hosts, tunnels: tunnels)
                             fontSize = backup.fontSize
                             await onRestore()
                             status = "服务器配置已合并。"

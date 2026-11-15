@@ -94,10 +94,9 @@ final class CoreTests: XCTestCase {
         let host = SSHHost(name: "Example", address: "example.invalid", user: "ops")
         let empty = try await store.hosts()
         XCTAssertTrue(empty.isEmpty)
-        try await store.save(host)
         let tunnel = SSHTunnelProfile(hostID: host.id, name: "Web", mode: .local,
                                       listenPort: 18080, destination: "127.0.0.1", destinationPort: 8080)
-        try await store.save(tunnel)
+        try await store.saveConfiguration(hosts: [host], tunnels: [tunnel])
         let savedTunnels = try await store.tunnels(hostID: host.id)
         XCTAssertEqual(savedTunnels, [tunnel])
         let saved = try await store.hosts()
