@@ -14,16 +14,18 @@ struct MacTermApp: App {
 
     var body: some Scene {
         WindowGroup("MacTerm") {
-            switch setup {
-            case .success(let (store, transfers, monitors)):
-                Workspace(store: store, transfers: transfers, monitors: monitors)
-                    .frame(minWidth: 850, minHeight: 540)
-            case .failure:
-                ContentUnavailableView("无法打开数据库", systemImage: "externaldrive.badge.exclamationmark",
-                                       description: Text("请检查应用数据目录的权限和磁盘可用空间。"))
+            Group {
+                switch setup {
+                case .success(let (store, transfers, monitors)):
+                    Workspace(store: store, transfers: transfers, monitors: monitors)
+                        .frame(minWidth: 850, minHeight: 540)
+                case .failure:
+                    ContentUnavailableView("无法打开数据库", systemImage: "externaldrive.badge.exclamationmark",
+                                           description: Text("请检查应用数据目录的权限和磁盘可用空间。"))
+                }
             }
+            .preferredColorScheme(.light)
         }
-        .preferredColorScheme(.light)
         .defaultSize(width: 1180, height: 780)
     }
 }
