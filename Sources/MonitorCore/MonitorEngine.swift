@@ -53,6 +53,22 @@ public struct Sample: Sendable {
         return (total - delta[3] - delta[4]) / total
     }
 
+    /// 按 Linux /proc/stat 计数差值返回用户态、系统态、空闲和 I/O 等待占比。
+    public func cpuBreakdown(since previous: Sample, core: String = "cpu") ->
+        (user: Double, system: Double, idle: Double, ioWait: Double)? {
+        guard let before = previous.cpu[core], let after = cpu[core],
+              before.count == 8, after.count == 8 else { return nil }
+        let pairs = zip(after, before)
+        guard pairs.allSatisfy({ $0.0 >= $0.1 }) else { return nil }
+        let delta = pairs.map { Double($0.0 - $0.1) }
+        let total = delta.reduce(0, +)
+        guard total > 0 else { return nil }
+        return (user: (delta[0] + delta[1]) / total,
+                system: (delta[2] + delta[5] + delta[6]) / total,
+                idle: delta[3] / total,
+                ioWait: delta[4] / total)
+    }
+
     public func rates(since previous: Sample, interface: String) -> (receive: Double, transmit: Double)? {
         let seconds = time.timeIntervalSince(previous.time)
         guard seconds > 0, let a = network[interface], let b = previous.network[interface],

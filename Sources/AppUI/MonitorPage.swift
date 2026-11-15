@@ -119,9 +119,13 @@ struct MonitorPage: View {
         let cpu = cores.map { core in
             "\(core): " + percentage(monitor.previous.flatMap { sample.utilization(since: $0, core: core) })
         }.joined(separator: "    ")
+        let breakdown = monitor.previous.flatMap { sample.cpuBreakdown(since: $0) }
+        let cpuDetail = breakdown.map {
+            "用户态 \(percentage($0.user))  系统态 \(percentage($0.system))  空闲 \(percentage($0.idle))  I/O Wait \(percentage($0.ioWait))"
+        } ?? "CPU 分项等待下一次采样"
         let memory = ["MemTotal", "MemAvailable", "MemFree", "Buffers", "Cached", "SwapTotal", "SwapFree"]
             .compactMap { key in sample.memory[key].map { "\(key): \($0) KiB" } }.joined(separator: "    ")
-        return "\(cores.count) 个逻辑核心\n\(cpu)\n\(memory)"
+        return "\(cores.count) 个逻辑核心\n\(cpuDetail)\n\(cpu)\n\(memory)"
     }
 
     private func loadHistory() async {
