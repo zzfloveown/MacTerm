@@ -8,8 +8,8 @@
 - Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198352)
 - 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198357)
 - 提交 94044e0 的 ARM64 云端构建通过，14 项单元测试零失败（3 项依赖 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）；Release 构建、SSHAskPass 助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322)
-- 最新 ARM64 UI 构建（提交 74926db）通过 14 项单元测试及全部集成任务；验证包内含 AppIcon.icns、10 个 macOS 图标尺寸，DMG 校验及包内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43720635313)
-- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43720635313/artifacts/14164781220)
+- 最新 ARM64 UI 构建（提交 1dedb81）通过 14 项单元测试及全部集成任务；验证包内含 AppIcon.icns、10 个 macOS 图标尺寸，DMG 校验及包内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43721541589)
+- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43721541589/artifacts/14163929634)
 
 ## 新增功能
 
