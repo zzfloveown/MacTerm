@@ -80,10 +80,10 @@ struct SettingsPage: View {
                     restore = backup
                 } catch { status = error.localizedDescription }
             }
-            .confirmationDialog("合并备份的服务器配置？", isPresented: Binding(
+            .confirmationDialog("合并备份的服务器与隧道配置？", isPresented: Binding(
                 get: { restore != nil }, set: { if !$0 { restore = nil } }
             ), titleVisibility: .visible, presenting: restore) { backup in
-                Button("合并 \(backup.hosts.count) 台服务器") {
+                Button("导入 \(backup.hosts.count) 台服务器和 \(backup.tunnels.count) 条隧道") {
                     Task {
                         do {
                             // 备份来自外部文件，按新 UUID 导入，防止覆盖现有身份或关联凭据。
@@ -102,7 +102,7 @@ struct SettingsPage: View {
                             try await store.saveConfiguration(hosts: hosts, tunnels: tunnels)
                             fontSize = backup.fontSize
                             await onRestore()
-                            status = "服务器配置已合并。"
+                            status = "服务器与 SSH 隧道配置已导入。"
                         } catch { status = error.localizedDescription }
                     }
                 }
