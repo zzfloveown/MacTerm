@@ -3,6 +3,7 @@ import ConnectionCore
 import Domain
 import SwiftTerm
 import SwiftUI
+import SSHCore
 
 public enum TerminalCursor: String, CaseIterable, Identifiable {
     case block = "方块", bar = "竖线", underline = "下划线"
@@ -24,6 +25,7 @@ public struct SSHTerminal: NSViewRepresentable {
     private let fontSize: Double
     private let cursor: TerminalCursor
     private let scrollback: Int
+    private let environment: [String: String]
     private let onExit: (Int32?) -> Void
 
     public init(host: SSHHost, fontSize: Double = 13, command: [String] = [],
@@ -33,6 +35,14 @@ public struct SSHTerminal: NSViewRepresentable {
         args = try OpenSSHArguments.common(host, interactive: true)
             + ["-tt", "--", host.address]
             + (command.isEmpty ? [] : [command.map(OpenSSHArguments.shellQuote).joined(separator: " ")])
+        if host.keychainAuthenticationEnabled {
+            let bundleHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SSHAskPass")
+            let siblingHelper = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("SSHAskPass")
+            let helper = FileManager.default.isExecutableFile(atPath: bundleHelper.path) ? bundleHelper : siblingHelper
+            environment = try SSHAskPassConfiguration.makeEnvironment(hostID: host.id, helper: helper)
+        } else {
+            environment = [:]
+        }
         self.fontSize = fontSize
         self.cursor = cursor
         self.scrollback = scrollback
@@ -47,10 +57,13 @@ public struct SSHTerminal: NSViewRepresentable {
         self.fontSize = fontSize
         self.cursor = cursor
         self.scrollback = scrollback
+        environment = [:]
         self.onExit = onExit
     }
 
-    public func makeCoordinator() -> Coordinator { Coordinator(onExit: onExit) }
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(onExit: onExit, tokenPath: environment["MACTERM_ASKPASS_TOKEN"])
+    }
 
     public func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = SearchableTerminal(frame: .zero)
@@ -59,7 +72,11 @@ public struct SSHTerminal: NSViewRepresentable {
         view.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
         configure(view, coordinator: context.coordinator)
         view.processDelegate = context.coordinator
-        view.startProcess(executable: executable, args: args)
+        var childEnvironment = ProcessInfo.processInfo.environment
+        childEnvironment["TERM"] = childEnvironment["TERM"] ?? "xterm-256color"
+        environment.forEach { childEnvironment[$0.key] = $0.value }
+        view.startProcess(executable: executable, args: args,
+                          environment: childEnvironment.map { "\($0.key)=\($0.value)" })
         return view
     }
 
@@ -90,12 +107,17 @@ public struct SSHTerminal: NSViewRepresentable {
         var cursor: TerminalCursor?
         var scrollback: Int?
         var onExit: (Int32?) -> Void
-        init(onExit: @escaping (Int32?) -> Void) { self.onExit = onExit }
+        private let tokenPath: String?
+        init(onExit: @escaping (Int32?) -> Void, tokenPath: String?) {
+            self.onExit = onExit
+            self.tokenPath = tokenPath
+        }
 
         public func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
         public func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
         public func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         public func processTerminated(source: TerminalView, exitCode: Int32?) {
+            if let tokenPath { try? FileManager.default.removeItem(atPath: tokenPath) }
             DispatchQueue.main.async { self.onExit(exitCode) }
         }
     }

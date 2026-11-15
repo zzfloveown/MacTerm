@@ -8,6 +8,11 @@
 - Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200/job/132532743379)
 - 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200/job/132532743364)
 
+## 新增待云端验收
+
+- 主机配置现支持用户逐台启用 Keychain 密码自动提交。新测试覆盖单次令牌、其他提示不泄露密码及旧配置兼容；需等待本次 ARM64 Actions 运行通过后才能记为已验收。
+- 安装包将包含独立 SSHAskPass 原生助手，主机密钥首次确认及私钥/交互挑战使用原生安全输入框；需在 macOS GUI 实机确认系统对话框与终端体验。
+
 ## 待完成
 
 - macOS 14 实机窗口、中文输入、键盘交互、终端全屏工具、通知显示、暂停恢复并发和生产形态下资源管理页面验收。

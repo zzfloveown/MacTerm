@@ -20,6 +20,8 @@ jobs:
           swift --version
       - name: Unit tests
         run: swift test
+      - name: Build SSH authentication helper
+        run: swift build -c release --product SSHAskPass
       - name: SSH and SFTP integration
         run: bash scripts/ssh-integration.sh
       - name: Package

@@ -3,6 +3,7 @@ import Domain
 import Foundation
 import MonitorCore
 import StorageCore
+import SSHAskPassCore
 import XCTest
 @testable import SFTPCore
 
@@ -15,6 +16,55 @@ final class CoreTests: XCTestCase {
         XCTAssertTrue(try OpenSSHArguments.common(host, interactive: true).contains("StrictHostKeyChecking=ask"))
         XCTAssertThrowsError(try OpenSSHArguments.validate(SSHHost(address: "-oProxyCommand=bad", user: "ops")))
         XCTAssertEqual(OpenSSHArguments.shellQuote("a'b"), "'a'\\''b'")
+    }
+
+    func testKeychainAskPassIsExplicitAndOneTime() throws {
+        let hostID = UUID()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let token = folder.appendingPathComponent("token")
+        try Data(hostID.uuidString.utf8).write(to: token)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: token.path)
+        let secret = Data("test-secret".utf8)
+        let result = try SSHAskPassHandler.credential(for: "ops@example's password:", tokenURL: token) { id in
+            XCTAssertEqual(id, hostID)
+            return secret
+        }
+        XCTAssertEqual(result, secret)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: token.path))
+    }
+
+    func testKeychainAskPassLeavesOtherPromptsForUser() throws {
+        let hostID = UUID()
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let token = folder.appendingPathComponent("token")
+        try Data(hostID.uuidString.utf8).write(to: token)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: token.path)
+        let result = try SSHAskPassHandler.credential(for: "Enter passphrase for key:", tokenURL: token) { _ in
+            XCTFail("A server password must not be sent as a local private-key passphrase")
+            return nil
+        }
+        XCTAssertNil(result)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: token.path))
+        let challenge = try SSHAskPassHandler.credential(for: "Password:", tokenURL: token) { _ in
+            XCTFail("Generic challenge text can represent a one-time code")
+            return nil
+        }
+        XCTAssertNil(challenge)
+    }
+
+    func testOldHostConfigurationDefaultsToManualAuthentication() throws {
+        let identifier = UUID()
+        let data = Data("""
+        {"id":"\(identifier.uuidString)","name":"legacy","address":"host.example","user":"ops","port":22,"identity":"","jump":""}
+        """.utf8)
+        let decoded = try JSONDecoder().decode(SSHHost.self, from: data)
+        XCTAssertFalse(decoded.keychainAuthenticationEnabled)
     }
 
     func testSFTPPathBoundary() throws {

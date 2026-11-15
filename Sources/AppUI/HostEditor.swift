@@ -20,6 +20,7 @@ struct HostEditor: View {
             TextField("端口", value: $host.port, format: .number.grouping(.never))
             TextField("私钥绝对路径", text: $host.identity)
             TextField("跳板机（可用逗号分隔）", text: $host.jump)
+            Toggle("允许此主机使用 Keychain 自动提交一次密码", isOn: $host.keychainAuthenticationEnabled)
             if !failure.isEmpty { Text(failure).foregroundStyle(.red) }
             HStack {
                 Button("取消") { dismiss() }

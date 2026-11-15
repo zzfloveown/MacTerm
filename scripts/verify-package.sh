@@ -17,9 +17,11 @@ trap cleanup EXIT
 hdiutil attach -readonly -nobrowse -mountpoint "$mount" -quiet dist/MacTerm.dmg
 app="$mount/MacTerm.app"
 test -d "$app"
+test -x "$app/Contents/Helpers/SSHAskPass"
 test "$(readlink "$mount/Applications")" = /Applications
-codesign --verify --strict "$app"
+codesign --verify --deep --strict "$app"
 test "$(lipo -archs "$app/Contents/MacOS/MacTerm")" = arm64
+test "$(lipo -archs "$app/Contents/Helpers/SSHAskPass")" = arm64
 "$app/Contents/MacOS/MacTerm" >"$log" 2>&1 &
 pid=$!
 sleep 5
