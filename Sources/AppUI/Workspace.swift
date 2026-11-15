@@ -1,3 +1,4 @@
+import AppKit
 import Domain
 import StorageCore
 import SwiftUI
@@ -164,25 +165,11 @@ public struct Workspace: View {
                           onAdd: { editing = SSHHost() })
         case .hosts:
             if let host {
-                Form {
-                    LabeledContent("名称", value: host.label)
-                    LabeledContent("地址", value: host.address)
-                    LabeledContent("用户", value: host.user)
-                    LabeledContent("端口", value: String(host.port))
-                    Button("编辑服务器") { editing = host }
-                    Button("移除本地配置", role: .destructive) {
-                        Task {
-                            do {
-                                try CredentialVault.delete(host.id)
-                                try await store.delete(host.id)
-                                monitors.remove(host.id)
-                                hostID = nil
-                                await refresh()
-                            }
-                            catch { failure = error.localizedDescription }
-                        }
-                    }
-                }.formStyle(.grouped)
+                HostDetailsPage(host: host,
+                                onConnect: { connect(host) },
+                                onOpen: { section = $0 },
+                                onEdit: { editing = host },
+                                onDelete: { delete(host) })
             } else { chooseHost }
         case .files: EmptyView()
         case .monitor:
@@ -237,5 +224,85 @@ public struct Workspace: View {
     private func refresh() async {
         do { hosts = try await store.hosts() }
         catch { failure = error.localizedDescription }
+    }
+
+    private func delete(_ host: SSHHost) {
+        Task {
+            do {
+                try CredentialVault.delete(host.id)
+                try await store.delete(host.id)
+                monitors.remove(host.id)
+                hostID = nil
+                await refresh()
+            } catch { failure = error.localizedDescription }
+        }
+    }
+}
+
+private struct HostDetailsPage: View {
+    let host: SSHHost
+    let onConnect: () -> Void
+    let onOpen: (Section) -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    @State private var copied = false
+    @State private var confirmingDelete = false
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 14) {
+                    Image(systemName: "server.rack.fill")
+                        .font(.system(size: 28)).foregroundStyle(.blue)
+                        .frame(width: 62, height: 62)
+                        .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 15))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(host.label).font(.title2.bold())
+                        Text("\(host.user)@\(host.address):\(host.port)").font(.callout.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let group = host.group, !group.isEmpty {
+                        Text(group).font(.caption).padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+                HStack {
+                    Button("连接终端", systemImage: "terminal", action: onConnect).buttonStyle(.borderedProminent)
+                    Button("SFTP 文件", systemImage: "folder") { onOpen(.files) }
+                    Button("服务器监控", systemImage: "waveform.path") { onOpen(.monitor) }
+                    Button("Docker", systemImage: "shippingbox") { onOpen(.docker) }
+                    Button("SSH 隧道", systemImage: "point.3.connected.trianglepath.dotted") { onOpen(.tunnels) }
+                }.controlSize(.small)
+            }
+            Section("连接配置") {
+                LabeledContent("主机", value: host.address)
+                LabeledContent("SSH 用户", value: host.user)
+                LabeledContent("端口", value: String(host.port))
+                LabeledContent("跳板机", value: host.jump.isEmpty ? "无" : host.jump)
+                LabeledContent("私钥", value: host.identity.isEmpty ? "SSH Agent 或默认密钥" : host.identity)
+                LabeledContent("密码认证", value: host.keychainAuthenticationEnabled ? "允许从 Keychain 提交" : "交互输入")
+                HStack {
+                    Button("复制连接地址", systemImage: "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("\(host.user)@\(host.address):\(host.port)", forType: .string)
+                        copied = true
+                    }
+                    if copied { Text("已复制").font(.caption).foregroundStyle(.secondary) }
+                    Spacer()
+                    Button("编辑服务器", systemImage: "pencil", action: onEdit)
+                }
+            }
+            Section {
+                Button("移除本地配置", systemImage: "trash", role: .destructive) { confirmingDelete = true }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: 760)
+        .confirmationDialog("移除此服务器配置？", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("确认移除", role: .destructive, action: onDelete)
+        } message: {
+            Text("将一并删除该服务器的 Keychain 凭据、监控历史、告警规则和 SSH 隧道配置。")
+        }
     }
 }

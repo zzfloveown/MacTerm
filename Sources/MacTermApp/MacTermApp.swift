@@ -23,6 +23,7 @@ struct MacTermApp: App {
                                        description: Text("请检查应用数据目录的权限和磁盘可用空间。"))
             }
         }
+        .preferredColorScheme(.light)
         .defaultSize(width: 1180, height: 780)
     }
 }
