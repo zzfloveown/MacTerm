@@ -250,7 +250,7 @@ private struct HostDetailsPage: View {
 
     var body: some View {
         Form {
-            Section {
+            SwiftUI.Section {
                 HStack(spacing: 14) {
                     Image(systemName: "server.rack.fill")
                         .font(.system(size: 28)).foregroundStyle(.blue)
@@ -275,7 +275,7 @@ private struct HostDetailsPage: View {
                     Button("SSH 隧道", systemImage: "point.3.connected.trianglepath.dotted") { onOpen(.tunnels) }
                 }.controlSize(.small)
             }
-            Section("连接配置") {
+            SwiftUI.Section("连接配置") {
                 LabeledContent("主机", value: host.address)
                 LabeledContent("SSH 用户", value: host.user)
                 LabeledContent("端口", value: String(host.port))
@@ -293,7 +293,7 @@ private struct HostDetailsPage: View {
                     Button("编辑服务器", systemImage: "pencil", action: onEdit)
                 }
             }
-            Section {
+            SwiftUI.Section {
                 Button("移除本地配置", systemImage: "trash", role: .destructive) { confirmingDelete = true }
             }
         }
