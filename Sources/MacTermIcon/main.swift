@@ -27,13 +27,13 @@ enum MacTermIcon {
     }
 
     private static func draw(size: Int) -> NSBitmapImageRep {
-        let representation = NSBitmapImageRep(pixelsWide: size, pixelsHigh: size,
+        let representation = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            colorSpaceName: .deviceRGB, bitmapFormat: [], bytesPerRow: 0, bitsPerPixel: 0)!
         NSGraphicsContext.saveGraphicsState()
         let context = NSGraphicsContext(bitmapImageRep: representation)!
         NSGraphicsContext.current = context
-        context.imageInterpolation = .high
+        context.imageInterpolation = NSImageInterpolation.high
         let scale = CGFloat(size) / 1024
         context.cgContext.scaleBy(x: scale, y: scale)
 
