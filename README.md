@@ -4,7 +4,7 @@ SwiftUI 原生 macOS 服务器管理客户端，最低系统 macOS 14，目标 A
 
 ## 试用构建
 
-下载 [已通过云端验收的 ARM64 构建](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200/artifacts/14125550194)，压缩包包含 MacTerm.dmg 和 MacTerm.app.zip。该构建用于测试，企业发行流程见 [部署](docs/deployment.md)。
+下载 [ARM64 云端交付构建](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/artifacts/14162113905)，压缩包包含 MacTerm.dmg 和 MacTerm.app.zip。图标和界面持续开发时，新构建以 GitHub Actions 最新成功产物为准。该构建目前用于测试，企业发行流程见 [部署](docs/deployment.md)。
 
 添加服务器后可打开终端。首次连接需核对带外取得的主机指纹。SFTP、监控、隧道和容器操作目前要求已验证的主机及可用的非交互身份（私钥或可访问的 SSH Agent）。Kubernetes 页面使用用户指定的 kubectl 和受信任的 kubeconfig。
 

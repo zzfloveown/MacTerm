@@ -10,6 +10,7 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources"
 cp "$products/MacTerm" "$app/Contents/MacOS/"
 cp "$products/SSHAskPass" "$app/Contents/Helpers/"
 cp packaging/Info.plist "$app/Contents/"
+swift run -c release MacTermIcon "$app/Contents/Resources"
 shopt -s nullglob
 for resource in "$products"/*.bundle; do
     ditto "$resource" "$app/Contents/Resources/$(basename "$resource")"
@@ -29,6 +30,7 @@ else
 fi
 codesign --verify --strict "$app/Contents/Helpers/SSHAskPass"
 codesign --verify --deep --strict "$app"
+test -s "$app/Contents/Resources/AppIcon.icns"
 mkdir -p dist/image
 ditto "$app" dist/image/MacTerm.app
 ln -sfn /Applications dist/image/Applications

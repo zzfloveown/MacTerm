@@ -55,6 +55,22 @@ public struct Workspace: View {
     public var body: some View {
         NavigationSplitView {
             List(selection: $section) {
+                SwiftUI.Section {
+                    HStack(spacing: 10) {
+                        Image(systemName: "terminal.fill")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(LinearGradient(colors: [.teal, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 34, height: 34)
+                            .background(.blue.opacity(0.09), in: RoundedRectangle(cornerRadius: 9))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("MacTerm").font(.headline)
+                            Text("SERVER OPERATIONS").font(.system(size: 8, weight: .semibold, design: .rounded))
+                                .tracking(0.7).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 5)
+                    .accessibilityElement(children: .combine)
+                }
                 SwiftUI.Section("工作区") {
                     ForEach(Section.allCases) { item in
                         Label(item.rawValue, systemImage: item.icon).tag(item)
@@ -100,10 +116,16 @@ public struct Workspace: View {
             .navigationTitle(section?.rawValue ?? "MacTerm")
             .toolbar {
                 Button("添加服务器", systemImage: "plus") { editing = SSHHost() }
+                    .keyboardShortcut("n", modifiers: .command)
                 Button("导入 SSH 配置", systemImage: "square.and.arrow.down") { importing = true }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
                 Button("连接", systemImage: "terminal") {
                     if let host { connect(host) }
                 }.disabled(host == nil).keyboardShortcut("t", modifiers: .command)
+                Button("打开 SFTP", systemImage: "folder") { section = .files }
+                    .disabled(host == nil).keyboardShortcut("f", modifiers: [.command, .option])
+                Button("打开监控", systemImage: "waveform.path") { section = .monitor }
+                    .disabled(host == nil).keyboardShortcut("m", modifiers: [.command, .option])
             }
         }
         .task { await refresh(); await transfers.load() }
@@ -133,21 +155,13 @@ public struct Workspace: View {
     @ViewBuilder private var page: some View {
         switch section ?? .dashboard {
         case .dashboard:
-            List {
-                if sessions.isEmpty && !restorableHosts.isEmpty {
-                    Button("重新打开上次 SSH 标签") { restoreTerminals() }
-                }
-                ForEach(hosts) { item in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(item.label).font(.headline)
-                            Text("\(item.user)@\(item.address):\(item.port)").foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("打开终端") { hostID = item.id; connect(item) }
-                    }
-                }
-            }.overlay { if hosts.isEmpty { ContentUnavailableView("添加服务器以开始连接", systemImage: "server.rack") } }
+            DashboardPage(hosts: hosts, terminalCount: sessions.count,
+                          transferCount: transfers.records.filter { ["待传输", "进行中", "已暂停"].contains($0.state) }.count,
+                          restorable: sessions.isEmpty && !restorableHosts.isEmpty,
+                          onConnect: { hostID = $0.id; connect($0) },
+                          onOpen: { selected, destination in hostID = selected.id; section = destination },
+                          onRestore: restoreTerminals,
+                          onAdd: { editing = SSHHost() })
         case .hosts:
             if let host {
                 Form {

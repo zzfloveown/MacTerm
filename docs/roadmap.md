@@ -10,4 +10,4 @@
 | P6 | Docker/nerdctl 查询和操作、容器终端、kubectl 资源及 Pod 终端、Deployment 扩缩容 | 验证 macOS 界面到容器环境的端到端操作 |
 | P7 | ARM64 DMG、App ZIP、云端挂载启动和签名公证流程 | Developer ID 凭据、公证、macOS 14 终端和界面验收、受控内网 HTTPS 分发 |
 
-继续补齐剩余功能，并优先完成 macOS 14 的 GUI 与真实集群联动验收。正式发布需要仓库签名公证 Secrets 和企业分发端点。
+持续补齐菜单页和快捷操作的真实功能，增加正式 AppIcon.icns，并优先完成 macOS 14 的 GUI 与真实集群联动验收。正式发布需要仓库签名公证 Secrets 和企业分发端点。

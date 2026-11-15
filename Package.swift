@@ -6,7 +6,8 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "MacTerm", targets: ["MacTermApp"]),
-        .executable(name: "SSHAskPass", targets: ["SSHAskPass"])
+        .executable(name: "SSHAskPass", targets: ["SSHAskPass"]),
+        .executable(name: "MacTermIcon", targets: ["MacTermIcon"])
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.12.0"),
@@ -20,6 +21,7 @@ let package = Package(
         .target(name: "SSHCore", dependencies: ["Domain", "ConnectionCore", "Infrastructure"]),
         .target(name: "SSHAskPassCore"),
         .executableTarget(name: "SSHAskPass", dependencies: ["SSHAskPassCore"]),
+        .executableTarget(name: "MacTermIcon"),
         .target(name: "SFTPCore", dependencies: ["Domain", "ConnectionCore", "Infrastructure"]),
         .target(name: "TerminalCore", dependencies: ["Domain", "ConnectionCore", "SSHCore", .product(name: "SwiftTerm", package: "SwiftTerm")]),
         .target(name: "MonitorCore", dependencies: ["Domain", "SSHCore"]),

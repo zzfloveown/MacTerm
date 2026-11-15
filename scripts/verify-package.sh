@@ -18,6 +18,15 @@ hdiutil attach -readonly -nobrowse -mountpoint "$mount" -quiet dist/MacTerm.dmg
 app="$mount/MacTerm.app"
 test -d "$app"
 test -x "$app/Contents/Helpers/SSHAskPass"
+test -s "$app/Contents/Resources/AppIcon.icns"
+iconset="$RUNNER_TEMP/macterm-icon-verify.iconset"
+iconutil --convert iconset --output "$iconset" "$app/Contents/Resources/AppIcon.icns"
+for icon in icon_16x16.png icon_16x16@2x.png icon_32x32.png icon_32x32@2x.png \
+            icon_128x128.png icon_128x128@2x.png icon_256x256.png icon_256x256@2x.png \
+            icon_512x512.png icon_512x512@2x.png; do
+    test -s "$iconset/$icon"
+done
+rm -rf "$iconset"
 test "$(readlink "$mount/Applications")" = /Applications
 codesign --verify --deep --strict "$app"
 test "$(lipo -archs "$app/Contents/MacOS/MacTerm")" = arm64
