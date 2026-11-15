@@ -83,3 +83,29 @@ public struct SSHTunnelProfile: Identifiable, Codable, Hashable, Sendable {
         self.reconnect = reconnect
     }
 }
+
+/// 不包含密码或私钥内容的可移植应用配置备份。
+public struct AppConfigurationBackup: Codable, Sendable {
+    public var version: Int
+    public let hosts: [SSHHost]
+    public let tunnels: [SSHTunnelProfile]
+    public let fontSize: Double
+
+    private enum CodingKeys: String, CodingKey { case version, hosts, tunnels, fontSize }
+
+    public init(version: Int = 1, hosts: [SSHHost], tunnels: [SSHTunnelProfile] = [], fontSize: Double) {
+        self.version = version
+        self.hosts = hosts
+        self.tunnels = tunnels
+        self.fontSize = fontSize
+    }
+
+    /// 旧版备份没有隧道字段，导入时作为空配置兼容。
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        version = try values.decode(Int.self, forKey: .version)
+        hosts = try values.decode([SSHHost].self, forKey: .hosts)
+        tunnels = try values.decodeIfPresent([SSHTunnelProfile].self, forKey: .tunnels) ?? []
+        fontSize = try values.decode(Double.self, forKey: .fontSize)
+    }
+}

@@ -14,7 +14,7 @@ struct SettingsPage: View {
     @AppStorage("terminalAutoReconnect") private var automaticReconnect = false
     @State private var exporting = false
     @State private var importing = false
-    @State private var restore: ConfigurationBackup?
+    @State private var restore: AppConfigurationBackup?
     @State private var document: BackupDocument?
     @State private var status = ""
 
@@ -27,13 +27,15 @@ struct SettingsPage: View {
             Stepper("滚动缓冲区 \(scrollback) 行", value: $scrollback, in: 1000...30_000, step: 1000)
             Toggle("SSH 异常断开后自动重连", isOn: $automaticReconnect)
             SwiftUI.Section("服务器配置备份") {
-                Text("备份包含服务器地址、用户和私钥路径。请将文件保存在受信任的位置。")
+                Text("备份包含服务器地址、用户、私钥路径和 SSH 隧道配置，不包含密码或私钥内容。请将文件保存在受信任的位置。")
                     .foregroundStyle(.secondary)
                 HStack {
                     Button("导出配置") {
                         Task {
                             do {
-                                let backup = ConfigurationBackup(hosts: try await store.hosts(), fontSize: fontSize)
+                                let hosts = try await store.hosts()
+                                let backup = AppConfigurationBackup(hosts: hosts, tunnels: try await store.tunnels(),
+                                                                    fontSize: fontSize)
                                 document = BackupDocument(data: try JSONEncoder().encode(backup))
                                 exporting = true
                             } catch { status = error.localizedDescription }
@@ -57,12 +59,24 @@ struct SettingsPage: View {
                     defer { try? file.close() }
                     let data = try file.read(upToCount: 5_000_001) ?? Data()
                     guard data.count <= 5_000_000 else { throw MacTermError("备份文件超过 5 MB。") }
-                    let backup = try JSONDecoder().decode(ConfigurationBackup.self, from: data)
+                    let backup = try JSONDecoder().decode(AppConfigurationBackup.self, from: data)
                     guard backup.version == 1, (9...26).contains(backup.fontSize),
-                          Set(backup.hosts.map(\.id)).count == backup.hosts.count else {
+                          Set(backup.hosts.map(\.id)).count == backup.hosts.count,
+                          Set(backup.tunnels.map(\.id)).count == backup.tunnels.count else {
                         throw MacTermError("备份版本或数据无效。")
                     }
                     try backup.hosts.forEach(OpenSSHArguments.validate)
+                    for tunnel in backup.tunnels {
+                        guard !tunnel.name.isEmpty, (1...65535).contains(tunnel.listenPort),
+                              tunnel.mode == .dynamic || (1...65535).contains(tunnel.destinationPort),
+                              backup.hosts.contains(where: { $0.id == tunnel.hostID }) else {
+                            throw MacTermError("备份中的 SSH 隧道配置无效。")
+                        }
+                        if tunnel.mode != .dynamic {
+                            try OpenSSHArguments.validate(SSHHost(address: tunnel.destination, user: "check",
+                                                                  port: tunnel.destinationPort))
+                        }
+                    }
                     restore = backup
                 } catch { status = error.localizedDescription }
             }
@@ -73,12 +87,20 @@ struct SettingsPage: View {
                     Task {
                         do {
                             // 备份来自外部文件，按新 UUID 导入，防止覆盖现有身份或关联凭据。
+                            let identifiers = Dictionary(uniqueKeysWithValues: backup.hosts.map { ($0.id, UUID()) })
                             let hosts = backup.hosts.map { host in
                                 var copy = host
-                                copy.id = UUID()
+                                copy.id = identifiers[host.id]!
                                 return copy
                             }
                             try await store.save(hosts)
+                            let tunnels = backup.tunnels.map { tunnel in
+                                var copy = tunnel
+                                copy.id = UUID()
+                                copy.hostID = identifiers[tunnel.hostID]!
+                                return copy
+                            }
+                            try await store.save(tunnels)
                             fontSize = backup.fontSize
                             await onRestore()
                             status = "服务器配置已合并。"
@@ -87,12 +109,6 @@ struct SettingsPage: View {
                 }
             }
     }
-}
-
-private struct ConfigurationBackup: Codable {
-    var version = 1
-    let hosts: [SSHHost]
-    let fontSize: Double
 }
 
 private struct BackupDocument: FileDocument {

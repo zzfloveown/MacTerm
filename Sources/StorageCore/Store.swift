@@ -135,13 +135,27 @@ public actor Store {
         }
     }
 
+    public func tunnels() throws -> [SSHTunnelProfile] {
+        try queue.read { db in
+            try Data.fetchAll(db, sql: "SELECT payload FROM ssh_tunnels ORDER BY rowid")
+                .map { try JSONDecoder().decode(SSHTunnelProfile.self, from: $0) }
+        }
+    }
+
     public func save(_ tunnel: SSHTunnelProfile) throws {
-        let payload = try JSONEncoder().encode(tunnel)
+        try save([tunnel])
+    }
+
+    public func save(_ tunnels: [SSHTunnelProfile]) throws {
         try queue.write { db in
-            try db.execute(sql: """
-                INSERT INTO ssh_tunnels VALUES (?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET host_id = excluded.host_id, payload = excluded.payload
-                """, arguments: [tunnel.id.uuidString, tunnel.hostID.uuidString, payload])
+            let encoder = JSONEncoder()
+            for tunnel in tunnels {
+                let payload = try encoder.encode(tunnel)
+                try db.execute(sql: """
+                    INSERT INTO ssh_tunnels VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET host_id = excluded.host_id, payload = excluded.payload
+                    """, arguments: [tunnel.id.uuidString, tunnel.hostID.uuidString, payload])
+            }
         }
     }
 

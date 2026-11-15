@@ -67,6 +67,21 @@ final class CoreTests: XCTestCase {
         XCTAssertFalse(decoded.keychainAuthenticationEnabled)
     }
 
+    func testConfigurationBackupPreservesTunnelsAndReadsOlderFiles() throws {
+        let host = SSHHost(name: "legacy", address: "host.example", user: "ops")
+        let hostData = try JSONEncoder().encode(host)
+        let hostJSON = String(decoding: hostData, as: UTF8.self)
+        let legacy = Data("{\"version\":1,\"hosts\":[\(hostJSON)],\"fontSize\":13}".utf8)
+        let oldBackup = try JSONDecoder().decode(AppConfigurationBackup.self, from: legacy)
+        XCTAssertTrue(oldBackup.tunnels.isEmpty)
+
+        let tunnel = SSHTunnelProfile(hostID: host.id, name: "web", mode: .local, listenPort: 18080)
+        let current = AppConfigurationBackup(hosts: [host], tunnels: [tunnel], fontSize: 13)
+        let roundTrip = try JSONDecoder().decode(AppConfigurationBackup.self, from: JSONEncoder().encode(current))
+        XCTAssertEqual(roundTrip.hosts, [host])
+        XCTAssertEqual(roundTrip.tunnels, [tunnel])
+    }
+
     func testSFTPPathBoundary() throws {
         XCTAssertEqual(try SFTPClient.path("/测试 文件"), "\"/测试 文件\"")
         XCTAssertThrowsError(try SFTPClient.path("/x\nrm /"))
