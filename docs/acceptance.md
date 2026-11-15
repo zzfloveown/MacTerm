@@ -5,16 +5,18 @@
 - 提交 fc6805b 通过 macos-15 ARM64 Debug 和 Release 编译、单元测试、SSH/SFTP 集成、签名校验、DMG 挂载与应用进程启动。[云端构建](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200)
 - 该构建已生成 MacTerm.dmg 和 MacTerm.app.zip。[ARM64 产物](https://github.com/zzfloveown/MacTerm/actions/runs/43623046200/artifacts/14125550194)
 - macOS Runner 的 OpenSSH 集成覆盖错误指纹拒绝、SSH 参数往返、双跳 ProxyJump、本地转发、远端转发、SOCKS5、端口冲突和取消。SFTP 覆盖中文文件名、目录项属性、权限、重命名、上传下载、字节校验、双向续传、拒绝损坏分片和失效文本版本。
-- Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43714440395/job/132812805920)
-- 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43714440395/job/132812806185)
-- 提交 87db46b 的 ARM64 云端构建通过，共 13 项单元测试（3 项需要 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）、Linux 实测与容器集成；Release 构建、助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43714440395)
-- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43714440395/artifacts/14161134386)
+- Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310/job/132815313579)
+- 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310/job/132815313765)
+- 提交 a9094f6 的 ARM64 云端构建通过，14 项单元测试零失败（3 项依赖 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）；Release 构建、SSHAskPass 助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310)
+- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43715267310/artifacts/14161768898)
 
-## 新增待云端验收
+## 新增功能
 
 - 主机配置现支持用户逐台启用 Keychain 密码自动提交。ARM64 CI 已通过单次令牌、其他提示不泄露密码及旧配置兼容测试。
 - 安装包将包含独立 SSHAskPass 原生助手，主机密钥首次确认及私钥/交互挑战使用原生安全输入框；需在 macOS GUI 实机确认系统对话框与终端体验。
 - SSH 隧道配置现可按主机保存本地/远程/SOCKS5 模式、端口、目标和重连选项；GRDB 保存、读取和删除服务器时级联清理测试已通过。
+- 配置备份包含 SSH 隧道并兼容旧版文件，导入时重新映射主机/隧道 UUID 且在单一事务中保存；往返与旧格式单测已通过。
+- 监控页显示用户态、系统态、空闲及 I/O Wait；ARM64 单元测试验证了真实计数差值计算。
 
 ## 待完成
 
