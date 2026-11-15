@@ -8,7 +8,8 @@
 - Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198352)
 - 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198357)
 - 提交 94044e0 的 ARM64 云端构建通过，14 项单元测试零失败（3 项依赖 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）；Release 构建、SSHAskPass 助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322)
-- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/artifacts/14162113905)
+- 最新 ARM64 UI 构建（提交 74926db）通过 14 项单元测试及全部集成任务；验证包内含 AppIcon.icns、10 个 macOS 图标尺寸，DMG 校验及包内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43720635313)
+- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43720635313/artifacts/14164781220)
 
 ## 新增功能
 
@@ -17,7 +18,8 @@
 - SSH 隧道配置现可按主机保存本地/远程/SOCKS5 模式、端口、目标和重连选项；GRDB 保存、读取和删除服务器时级联清理测试已通过。
 - 配置备份包含 SSH 隧道并兼容旧版文件，导入时重新映射主机/隧道 UUID 且在单一事务中保存；往返与旧格式单测已通过。
 - 监控页显示用户态、系统态、空闲及 I/O Wait；ARM64 单元测试验证了真实计数差值计算。
-- 最新 UI 改进正在云端验收：含多尺寸原生 ICNS 的应用图标、服务器总览工作台和快捷导航。
+- MacTerm 图标现由原生 AppKit 绘制并进入 ICNS 包，CI 从 DMG 解包检查 16 到 1024 像素共 10 个标准尺寸。
+- 工作台提供服务器、终端和活动传输统计卡，以及单击进入 SSH、SFTP、监控、Docker 和隧道页面的快捷操作。
 
 ## 待完成
 

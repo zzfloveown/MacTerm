@@ -8,6 +8,6 @@
 | P4 | 共享采集、Linux 系统信息、进程管理、磁盘和网络统计、历史、CSV 和通知告警；CPU 现区分用户态、系统态、空闲和 I/O Wait | 跨发行版及通知真机验收 |
 | P5 | ProxyJump、三类转发、就绪检查、错误提示和重试；隧道配置按主机写入 GRDB 并支持备份 | 不同 sshd 转发策略及应用重启后的实机体验 |
 | P6 | Docker/nerdctl 查询和操作、容器终端、kubectl 资源及 Pod 终端、Deployment 扩缩容 | 验证 macOS 界面到容器环境的端到端操作 |
-| P7 | ARM64 DMG、App ZIP、云端挂载启动和签名公证流程 | Developer ID 凭据、公证、macOS 14 终端和界面验收、受控内网 HTTPS 分发 |
+| P7 | ARM64 DMG、App ZIP、原生多尺寸 ICNS、云端挂载启动和签名校验 | Developer ID 凭据、公证、macOS 14 终端和界面实机验收、受控内网 HTTPS 分发 |
 
 持续补齐菜单页和快捷操作的真实功能，增加正式 AppIcon.icns，并优先完成 macOS 14 的 GUI 与真实集群联动验收。正式发布需要仓库签名公证 Secrets 和企业分发端点。
