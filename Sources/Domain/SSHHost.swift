@@ -52,3 +52,34 @@ public struct MacTermError: LocalizedError, Sendable {
     public init(_ message: String) { self.message = message }
     public var errorDescription: String? { message }
 }
+
+public enum SSHTunnelMode: String, CaseIterable, Codable, Hashable, Sendable {
+    case local = "本地转发"
+    case remote = "远程转发"
+    case dynamic = "SOCKS5"
+}
+
+/// 可持久化的 SSH 隧道配置，不包含凭据或连接状态。
+public struct SSHTunnelProfile: Identifiable, Codable, Hashable, Sendable {
+    public var id: UUID
+    public var hostID: UUID
+    public var name: String
+    public var mode: SSHTunnelMode
+    public var listenPort: Int
+    public var destination: String
+    public var destinationPort: Int
+    public var reconnect: Bool
+
+    public init(id: UUID = UUID(), hostID: UUID, name: String, mode: SSHTunnelMode,
+                listenPort: Int, destination: String = "127.0.0.1", destinationPort: Int = 80,
+                reconnect: Bool = false) {
+        self.id = id
+        self.hostID = hostID
+        self.name = name
+        self.mode = mode
+        self.listenPort = listenPort
+        self.destination = destination
+        self.destinationPort = destinationPort
+        self.reconnect = reconnect
+    }
+}

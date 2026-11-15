@@ -3,9 +3,7 @@ import Domain
 import Foundation
 import Infrastructure
 
-public enum ForwardMode: String, CaseIterable, Sendable {
-    case local = "本地转发", remote = "远程转发", dynamic = "SOCKS5"
-}
+public typealias ForwardMode = SSHTunnelMode
 
 extension OpenSSHTransport {
     /// 使用独立的控制套接字确认监听建立，任务取消后清理转发进程。

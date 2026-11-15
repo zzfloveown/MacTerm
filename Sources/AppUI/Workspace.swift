@@ -81,7 +81,7 @@ public struct Workspace: View {
                         .opacity(section == .files ? 1 : 0)
                         .allowsHitTesting(section == .files)
                         .accessibilityHidden(section != .files)
-                    TunnelPage(host: host).id(host?.id)
+                    TunnelPage(host: host, store: store).id(host?.id)
                         .opacity(section == .tunnels ? 1 : 0)
                         .allowsHitTesting(section == .tunnels)
                         .accessibilityHidden(section != .tunnels)
@@ -158,7 +158,13 @@ public struct Workspace: View {
                     Button("编辑服务器") { editing = host }
                     Button("移除本地配置", role: .destructive) {
                         Task {
-                            do { try await store.delete(host.id); monitors.remove(host.id); hostID = nil; await refresh() }
+                            do {
+                                try CredentialVault.delete(host.id)
+                                try await store.delete(host.id)
+                                monitors.remove(host.id)
+                                hostID = nil
+                                await refresh()
+                            }
                             catch { failure = error.localizedDescription }
                         }
                     }

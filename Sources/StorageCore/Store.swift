@@ -71,6 +71,16 @@ public actor Store {
                 CREATE INDEX monitor_alert_events_host ON monitor_alert_events(host_id, created_at);
                 """)
         }
+        migrator.registerMigration("persistentSSHTunnels") { db in
+            try db.execute(sql: """
+                CREATE TABLE ssh_tunnels (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    host_id TEXT NOT NULL,
+                    payload BLOB NOT NULL
+                );
+                CREATE INDEX ssh_tunnels_host ON ssh_tunnels(host_id);
+                """)
+        }
         try migrator.migrate(queue)
     }
 
@@ -109,7 +119,35 @@ public actor Store {
 
     public func delete(_ id: UUID) throws {
         try queue.write { db in
+            try db.execute(sql: "DELETE FROM ssh_tunnels WHERE host_id = ?", arguments: [id.uuidString])
+            try db.execute(sql: "DELETE FROM monitor_history WHERE host_id = ?", arguments: [id.uuidString])
+            try db.execute(sql: "DELETE FROM monitor_alert_rules WHERE host_id = ?", arguments: [id.uuidString])
+            try db.execute(sql: "DELETE FROM monitor_alert_events WHERE host_id = ?", arguments: [id.uuidString])
             try db.execute(sql: "DELETE FROM ssh_hosts WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    public func tunnels(hostID: UUID) throws -> [SSHTunnelProfile] {
+        try queue.read { db in
+            try Data.fetchAll(db, sql: "SELECT payload FROM ssh_tunnels WHERE host_id = ? ORDER BY rowid",
+                              arguments: [hostID.uuidString])
+                .map { try JSONDecoder().decode(SSHTunnelProfile.self, from: $0) }
+        }
+    }
+
+    public func save(_ tunnel: SSHTunnelProfile) throws {
+        let payload = try JSONEncoder().encode(tunnel)
+        try queue.write { db in
+            try db.execute(sql: """
+                INSERT INTO ssh_tunnels VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET host_id = excluded.host_id, payload = excluded.payload
+                """, arguments: [tunnel.id.uuidString, tunnel.hostID.uuidString, payload])
+        }
+    }
+
+    public func deleteTunnel(_ id: UUID) throws {
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM ssh_tunnels WHERE id = ?", arguments: [id.uuidString])
         }
     }
 
