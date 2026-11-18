@@ -298,7 +298,7 @@ private struct HostDetailsPage: View {
                             .background(.quaternary, in: Capsule())
                     }
                 }
-                HStack {
+                HostActionLayout {
                     Button("连接终端", systemImage: "terminal", action: onConnect).buttonStyle(.borderedProminent)
                     Button("SFTP 文件", systemImage: "folder") { onOpen(.files) }
                     Button("服务器监控", systemImage: "waveform.path") { onOpen(.monitor) }
@@ -306,7 +306,8 @@ private struct HostDetailsPage: View {
                     Button("SSH 隧道", systemImage: "point.3.connected.trianglepath.dotted") { onOpen(.tunnels) }
                     Button("密钥管理", systemImage: "key") { onOpen(.keys) }
                     Button("告警中心", systemImage: "bell") { onOpen(.alerts) }
-                }.controlSize(.small)
+                }
+                .controlSize(.regular)
             }
             SwiftUI.Section("连接配置") {
                 LabeledContent("主机", value: host.address)
@@ -342,5 +343,45 @@ private struct HostDetailsPage: View {
         } message: {
             Text("将一并删除该服务器的 Keychain 凭据、命令历史、监控历史、告警规则和 SSH 隧道配置。")
         }
+    }
+}
+
+/// 按按钮的完整文字宽度排布，空间不足时换行，不压缩标签。
+private struct HostActionLayout: Layout {
+    private let horizontalSpacing: CGFloat = 8
+    private let verticalSpacing: CGFloat = 10
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrangement(subviews, width: proposal.width ?? .infinity).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrangement(subviews, width: bounds.width)
+        for (index, subview) in subviews.enumerated() {
+            let origin = layout.origins[index]
+            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
+                          anchor: .topLeading, proposal: .unspecified)
+        }
+    }
+
+    private func arrangement(_ subviews: Subviews, width: CGFloat) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            usedWidth = max(usedWidth, x + size.width)
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + horizontalSpacing
+        }
+        return (CGSize(width: usedWidth, height: y + rowHeight), origins)
     }
 }
