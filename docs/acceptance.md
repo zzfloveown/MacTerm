@@ -8,8 +8,8 @@
 - Linux Runner 使用真实回环 sshd 运行应用同一采集脚本，并测得 Linux PTY 与 Docker 服务查询成功。[Linux 测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198352)
 - 临时 containerd/nerdctl 与 kind Kubernetes 的 CLI 合约测试通过。覆盖 nerdctl 查询和数据卷、Node 和 Namespace、Secret 名称与类型、Pod 日志和执行、Deployment 缩容。[容器测试](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322/job/132817198357)
 - 提交 94044e0 的 ARM64 云端构建通过，14 项单元测试零失败（3 项依赖 SSH fixture 的测试在普通单测任务跳过，随后专用 SSH/SFTP 集成任务 3/3 通过）；Release 构建、SSHAskPass 助手签名、DMG 校验和镜像内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43715883322)
-- 最新 ARM64 UI 构建（提交 1dedb81）通过 14 项单元测试及全部集成任务；验证包内含 AppIcon.icns、10 个 macOS 图标尺寸，DMG 校验及包内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/43721541589)
-- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/43721541589/artifacts/14163929634)
+- 最新 ARM64 构建（提交 d4dd2e4）通过单元测试、SSH/SFTP 集成（含双向覆盖传输与临时文件清理）、Linux 与容器集成任务；验证包内含 AppIcon.icns、10 个 macOS 图标尺寸，DMG 校验及包内应用启动通过。[Actions](https://github.com/zzfloveown/MacTerm/actions/runs/44262840023)
+- 含 MacTerm.app.zip 与 MacTerm.dmg 的交付产物：[下载 ARM64 构建产物](https://github.com/zzfloveown/MacTerm/actions/runs/44262840023/artifacts/14408583228)
 
 ## 新增功能
 
@@ -21,6 +21,7 @@
 - MacTerm 图标现由原生 AppKit 绘制并进入 ICNS 包，CI 从 DMG 解包检查 16 到 1024 像素共 10 个标准尺寸。
 - 工作台提供服务器、终端和活动传输统计卡，以及单击进入 SSH、SFTP、监控、Docker 和隧道页面的快捷操作。
 - 服务器详情页提供连接属性、跳板机/密钥/认证状态、复制连接地址和终端/SFTP/监控/Docker/隧道入口；删除前显示关联数据清理说明。应用界面锁定浅色外观，终端维持独立深色配色。
+- SFTP 支持二次确认后覆盖同名文件、任务级 `.part` 临时文件清理与已完成记录清理；终端支持单行快捷命令历史与分屏指定标签；隧道支持多条并发保持；监控、Docker 和 Kubernetes 页面提供可视化进度条与资源名称快捷点选。
 
 ## 待完成
 
