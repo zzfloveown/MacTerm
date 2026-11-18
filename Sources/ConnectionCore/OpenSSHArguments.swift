@@ -26,7 +26,20 @@ public enum OpenSSHArguments {
         if sharesConnection, let socket = SSHControlPath.forHost(host) {
             args += ["-o", "ControlPath=\(socket)", "-o", "ControlMaster=\(interactive ? "auto" : "no")"]
         }
-        if !host.identity.isEmpty { args += ["-i", host.identity, "-o", "IdentitiesOnly=yes"] }
+        switch host.authenticationMethod {
+        case .privateKey:
+            args += ["-o", "PreferredAuthentications=publickey", "-o", "PasswordAuthentication=no",
+                     "-o", "KbdInteractiveAuthentication=no"]
+        case .password:
+            args += ["-o", "PreferredAuthentications=keyboard-interactive,password",
+                     "-o", "PubkeyAuthentication=no", "-o", "PasswordAuthentication=yes",
+                     "-o", "KbdInteractiveAuthentication=yes"]
+        case nil:
+            break
+        }
+        if host.authenticationMethod != .password, !host.identity.isEmpty {
+            args += ["-i", host.identity, "-o", "IdentitiesOnly=yes"]
+        }
         if !host.jump.isEmpty { args += ["-J", host.jump] }
         return args
     }

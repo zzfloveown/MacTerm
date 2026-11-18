@@ -15,7 +15,8 @@ enum SSHControlPath {
 
     static func forHost(_ host: SSHHost, scope: String = "") -> String? {
         guard let directory else { return nil }
-        let parts = [scope, host.id.uuidString, host.address, host.user, String(host.port), host.identity, host.jump]
+        let parts = [scope, host.id.uuidString, host.address, host.user, String(host.port), host.identity, host.jump,
+                     host.authenticationMethod?.rawValue ?? "automatic"]
         let digest = SHA256.hash(data: Data(parts.joined(separator: "\u{0}").utf8))
         return directory + "/" + digest.prefix(16).map { String(format: "%02x", $0) }.joined()
     }

@@ -11,6 +11,10 @@ struct HostEditor: View {
     @State private var failure = ""
     @Environment(\.dismiss) private var dismiss
 
+    private var selectedAuthentication: SSHAuthenticationMethod {
+        host.authenticationMethod ?? (host.keychainAuthenticationEnabled || host.identity.isEmpty ? .password : .privateKey)
+    }
+
     var body: some View {
         Form {
             TextField("名称", text: $host.name)
@@ -18,9 +22,24 @@ struct HostEditor: View {
             TextField("主机名或 IP", text: $host.address)
             TextField("SSH 用户名", text: $host.user)
             TextField("端口", value: $host.port, format: .number.grouping(.never))
-            TextField("私钥绝对路径", text: $host.identity)
+            Picker("认证方式", selection: Binding(
+                get: { selectedAuthentication },
+                set: { host.authenticationMethod = $0 }
+            )) {
+                Text("私钥").tag(SSHAuthenticationMethod.privateKey)
+                Text("密码").tag(SSHAuthenticationMethod.password)
+            }.pickerStyle(.radioGroup)
+            if selectedAuthentication == .privateKey {
+                TextField("私钥绝对路径", text: $host.identity)
+                Text("留空使用 SSH Agent 或默认密钥。").foregroundStyle(.secondary)
+            } else {
+                Toggle("使用 Keychain 中保存的密码", isOn: $host.keychainAuthenticationEnabled)
+                Text(host.keychainAuthenticationEnabled
+                     ? "请在密钥页面保存此主机的密码。"
+                     : "连接后在终端提示处输入密码，输入时不显示字符。")
+                    .foregroundStyle(.secondary)
+            }
             TextField("跳板机（可用逗号分隔）", text: $host.jump)
-            Toggle("允许此主机使用 Keychain 自动提交一次密码", isOn: $host.keychainAuthenticationEnabled)
             if !failure.isEmpty { Text(failure).foregroundStyle(.red) }
             HStack {
                 Button("取消") { dismiss() }
@@ -28,6 +47,7 @@ struct HostEditor: View {
                 Button("保存") {
                     Task {
                         do {
+                            host.authenticationMethod = selectedAuthentication
                             try OpenSSHArguments.validate(host)
                             try await save(host)
                             dismiss()

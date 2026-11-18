@@ -145,7 +145,7 @@ public struct Workspace: View {
             }
             .navigationTitle(section?.rawValue ?? "MacTerm")
             .toolbar {
-                Button("添加服务器", systemImage: "plus") { editing = SSHHost() }
+                Button("添加服务器", systemImage: "plus") { editing = SSHHost(authenticationMethod: .password) }
                     .keyboardShortcut("n", modifiers: .command)
                 Button("导入 SSH 配置", systemImage: "square.and.arrow.down") { importing = true }
                     .keyboardShortcut("i", modifiers: [.command, .shift])
@@ -193,7 +193,7 @@ public struct Workspace: View {
                           onNavigate: { section = $0 },
                           onEdit: { editing = $0 },
                           onRestore: restoreTerminals,
-                          onAdd: { editing = SSHHost() })
+                          onAdd: { editing = SSHHost(authenticationMethod: .password) })
         case .hosts:
             if let host {
                 HostDetailsPage(host: host,
@@ -313,8 +313,13 @@ private struct HostDetailsPage: View {
                 LabeledContent("SSH 用户", value: host.user)
                 LabeledContent("端口", value: String(host.port))
                 LabeledContent("跳板机", value: host.jump.isEmpty ? "无" : host.jump)
-                LabeledContent("私钥", value: host.identity.isEmpty ? "SSH Agent 或默认密钥" : host.identity)
-                LabeledContent("密码认证", value: host.keychainAuthenticationEnabled ? "允许从 Keychain 提交" : "交互输入")
+                LabeledContent("认证方式", value: host.authenticationMethod?.label ?? "自动（旧配置）")
+                if host.authenticationMethod != .password {
+                    LabeledContent("私钥", value: host.identity.isEmpty ? "SSH Agent 或默认密钥" : host.identity)
+                }
+                if host.authenticationMethod != .privateKey {
+                    LabeledContent("密码认证", value: host.keychainAuthenticationEnabled ? "允许从 Keychain 提交" : "交互输入")
+                }
                 HStack {
                     Button("复制连接地址", systemImage: "doc.on.doc") {
                         NSPasteboard.general.clearContents()

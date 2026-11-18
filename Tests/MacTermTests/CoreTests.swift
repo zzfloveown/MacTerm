@@ -18,6 +18,34 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(OpenSSHArguments.shellQuote("a'b"), "'a'\\''b'")
     }
 
+    func testExplicitAuthenticationRestrictsMethodsAndIsolatesConnections() throws {
+        var host = SSHHost(address: "example.invalid", user: "ops", identity: "/tmp/test-key",
+                           authenticationMethod: .privateKey)
+        let keyArguments = try OpenSSHArguments.common(host, interactive: true)
+        XCTAssertTrue(keyArguments.contains("PreferredAuthentications=publickey"))
+        XCTAssertTrue(keyArguments.contains("PasswordAuthentication=no"))
+        XCTAssertTrue(keyArguments.contains("KbdInteractiveAuthentication=no"))
+        XCTAssertTrue(keyArguments.contains("-i"))
+
+        host.authenticationMethod = .password
+        let passwordArguments = try OpenSSHArguments.common(host, interactive: true)
+        XCTAssertTrue(passwordArguments.contains("PubkeyAuthentication=no"))
+        XCTAssertTrue(passwordArguments.contains("PreferredAuthentications=keyboard-interactive,password"))
+        XCTAssertFalse(passwordArguments.contains("-i"))
+        XCTAssertFalse(passwordArguments.contains(host.identity))
+        XCTAssertNotEqual(keyArguments.first { $0.hasPrefix("ControlPath=") },
+                          passwordArguments.first { $0.hasPrefix("ControlPath=") })
+        XCTAssertTrue(try OpenSSHArguments.common(host, interactive: false).contains("BatchMode=yes"))
+    }
+
+    func testAuthenticationSelectionSurvivesConfigurationRoundTrip() throws {
+        for method in [SSHAuthenticationMethod.privateKey, .password] {
+            let host = SSHHost(address: "example.invalid", user: "ops", authenticationMethod: method)
+            let decoded = try JSONDecoder().decode(SSHHost.self, from: JSONEncoder().encode(host))
+            XCTAssertEqual(decoded, host)
+        }
+    }
+
     func testKeychainAskPassIsExplicitAndOneTime() throws {
         let hostID = UUID()
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -65,6 +93,7 @@ final class CoreTests: XCTestCase {
         """.utf8)
         let decoded = try JSONDecoder().decode(SSHHost.self, from: data)
         XCTAssertFalse(decoded.keychainAuthenticationEnabled)
+        XCTAssertNil(decoded.authenticationMethod)
     }
 
     func testConfigurationBackupPreservesTunnelsAndReadsOlderFiles() throws {

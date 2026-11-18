@@ -39,7 +39,7 @@ public struct SSHTerminal: NSViewRepresentable {
         args = try OpenSSHArguments.common(host, interactive: true)
             + ["-tt", "--", host.address]
             + (command.isEmpty ? [] : [command.map(OpenSSHArguments.shellQuote).joined(separator: " ")])
-        if host.keychainAuthenticationEnabled {
+        if host.keychainAuthenticationEnabled && host.authenticationMethod != .privateKey {
             let bundleHelper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/SSHAskPass")
             let siblingHelper = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("SSHAskPass")
             let helper = FileManager.default.isExecutableFile(atPath: bundleHelper.path) ? bundleHelper : siblingHelper
