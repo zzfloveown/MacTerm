@@ -30,6 +30,7 @@ struct TerminalWorkspace: View {
     @Binding var current: UUID?
     @Binding var split: SplitMode
     let fontSize: Double
+    @State private var trustSession: TerminalSession?
     @State private var secondaryID: UUID?
     @State private var showingCommands = false
     @State private var commandText = ""
@@ -186,6 +187,10 @@ struct TerminalWorkspace: View {
                     HStack {
                         Text(status).font(.caption).foregroundStyle(.secondary)
                         Spacer()
+                        if let session = activeSession, session.host != nil {
+                            Button("检查主机指纹", systemImage: "checkmark.shield") { trustSession = session }
+                                .help("连接因指纹变化被拒绝时，核对并更新此目标的信任记录")
+                        }
                         Button("立即重连") {
                             if let index = sessions.firstIndex(where: { $0.id == current }) {
                                 sessions[index].attempt = UUID()
@@ -230,6 +235,15 @@ struct TerminalWorkspace: View {
             }
         }
         .task(id: activeHost?.id) { await loadCommandHistory() }
+        .sheet(item: $trustSession) { session in
+            if let host = session.host {
+                HostTrustReview(host: host) {
+                    guard let index = sessions.firstIndex(where: { $0.id == session.id && $0.attempt == session.attempt }) else { return }
+                    sessions[index].attempt = UUID()
+                    sessions[index].exitStatus = nil
+                }
+            }
+        }
     }
 
     private func sendQuickCommand(_ raw: String) {
@@ -275,7 +289,7 @@ struct TerminalWorkspace: View {
         guard automaticReconnect, code == 255, sessions[index].host != nil, sessions[index].command.isEmpty else { return }
         Task {
             try? await Task.sleep(for: .seconds(5))
-            guard automaticReconnect,
+            guard automaticReconnect, trustSession == nil,
                   let index = sessions.firstIndex(where: { $0.id == id && $0.attempt == attempt }) else { return }
             sessions[index].attempt = UUID()
             sessions[index].exitStatus = nil

@@ -64,6 +64,7 @@ struct KeyPage: View {
     let store: Store
     let updated: () async -> Void
     @State private var busy = false
+    @State private var showingTrustReview = false
     @State private var publicKey = ""
     @State private var password = ""
     @State private var status = ""
@@ -77,7 +78,8 @@ struct KeyPage: View {
                     Button("生成 Ed25519 密钥") { generate(host) }
                     Button("查看公钥") { query { try await SSHKeyService.publicKey(at: host.identity) } }
                         .disabled(host.identity.isEmpty)
-                    Button("查看已验证指纹") { query { try await SSHKeyService.fingerprints(host) } }
+                    Button("查看已保存指纹") { query { try await SSHKeyService.fingerprints(host) } }
+                    Button("检查主机指纹") { showingTrustReview = true }
                 }.disabled(busy)
                 if !publicKey.isEmpty { Text(publicKey).font(.system(.caption, design: .monospaced)).textSelection(.enabled) }
                 SecureField("存入 Keychain 的凭据", text: $password)
@@ -92,6 +94,9 @@ struct KeyPage: View {
                 if !status.isEmpty { Text(status) }
             } else { Text("请在侧边栏选择服务器") }
         }.formStyle(.grouped)
+        .sheet(isPresented: $showingTrustReview) {
+            if let host { HostTrustReview(host: host) }
+        }
     }
 
     private func generate(_ host: SSHHost) {

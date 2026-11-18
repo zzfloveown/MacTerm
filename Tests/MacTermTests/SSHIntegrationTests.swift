@@ -6,6 +6,56 @@ import SSHCore
 import XCTest
 
 final class SSHIntegrationTests: XCTestCase {
+    func testReviewedHostKeyReplacementAndStaleReviewRejection() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let fixture = env["MACTERM_TEST_FIXTURE"],
+              let port = env["MACTERM_TEST_PORT"].flatMap(Int.init),
+              let user = env["MACTERM_TEST_USER"] else {
+            throw XCTSkip("需要 GitHub Actions 上的临时 sshd。")
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = root.appendingPathComponent(".ssh")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let known = directory.appendingPathComponent("known_hosts")
+        let wrong = try String(contentsOfFile: fixture + "/wrong.pub", encoding: .utf8)
+        let original = Data(("[127.0.0.1]:\(port) " + wrong + "other.invalid " + wrong).utf8)
+        try original.write(to: known)
+        let host = SSHHost(address: "127.0.0.1", user: user, port: port, identity: fixture + "/user")
+        let review = try await SSHHostTrust.inspect(host, home: root)
+        let candidate = try XCTUnwrap(review.candidates.first)
+        XCTAssertEqual(try Data(contentsOf: known), original, "Inspection must not change trust")
+        do {
+            try await SSHHostTrust.update(review, fingerprint: "SHA256:unreviewed")
+            XCTFail("An unreviewed fingerprint was accepted")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: known), original)
+        let changed = original + Data("# concurrent update\n".utf8)
+        try changed.write(to: known)
+        do {
+            try await SSHHostTrust.update(review, fingerprint: candidate.fingerprint)
+            XCTFail("A stale review overwrote a concurrent update")
+        } catch {}
+        XCTAssertEqual(try Data(contentsOf: known), changed)
+        let fresh = try await SSHHostTrust.inspect(host, home: root)
+        try await SSHHostTrust.update(fresh, fingerprint: try XCTUnwrap(fresh.candidates.first).fingerprint)
+        XCTAssertTrue(try String(contentsOf: known, encoding: .utf8).contains("other.invalid " + wrong))
+        let response = try await ProcessRunner.run("/usr/bin/ssh", [
+            "-F", "/dev/null", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
+            "-o", "UserKnownHostsFile=\(known.path)", "-o", "GlobalKnownHostsFile=/dev/null",
+            "-o", "IdentitiesOnly=yes", "-i", host.identity, "-p", String(port), "-l", user,
+            "127.0.0.1", "true"
+        ])
+        XCTAssertEqual(response.status, 0)
+        let other = directory.appendingPathComponent("known_hosts2")
+        try original.write(to: other)
+        do {
+            _ = try await SSHHostTrust.inspect(host, home: root)
+            XCTFail("Conflicting secondary trust records must require manual review")
+        } catch {}
+    }
+
     func testLocalForwardAndPortConflict() async throws {
         let env = ProcessInfo.processInfo.environment
         guard let fixture = env["MACTERM_TEST_FIXTURE"],
