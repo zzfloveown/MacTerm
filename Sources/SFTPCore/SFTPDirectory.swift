@@ -9,6 +9,13 @@ public struct SFTPEntry: Identifiable, Sendable {
     public let permissions: UInt32?
     public let modified: Date?
     public var isDirectory: Bool { permissions.map { ($0 & 0o170000) == 0o040000 } ?? false }
+
+    public init(name: String, size: UInt64?, permissions: UInt32?, modified: Date?) {
+        self.name = name
+        self.size = size
+        self.permissions = permissions
+        self.modified = modified
+    }
 }
 
 extension SFTPClient {

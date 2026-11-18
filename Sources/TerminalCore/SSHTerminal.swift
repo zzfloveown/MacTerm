@@ -26,10 +26,14 @@ public struct SSHTerminal: NSViewRepresentable {
     private let cursor: TerminalCursor
     private let scrollback: Int
     private let environment: [String: String]
+    private let pendingInput: (id: UUID, text: String)?
+    private let onTitle: (String) -> Void
     private let onExit: (Int32?) -> Void
 
     public init(host: SSHHost, fontSize: Double = 13, command: [String] = [],
                 cursor: TerminalCursor = .block, scrollback: Int = 5000,
+                pendingInput: (id: UUID, text: String)? = nil,
+                onTitle: @escaping (String) -> Void = { _ in },
                 onExit: @escaping (Int32?) -> Void = { _ in }) throws {
         executable = "/usr/bin/ssh"
         args = try OpenSSHArguments.common(host, interactive: true)
@@ -46,11 +50,15 @@ public struct SSHTerminal: NSViewRepresentable {
         self.fontSize = fontSize
         self.cursor = cursor
         self.scrollback = scrollback
+        self.pendingInput = pendingInput
+        self.onTitle = onTitle
         self.onExit = onExit
     }
 
     public init(executable: String, arguments: [String], fontSize: Double = 13,
                 cursor: TerminalCursor = .block, scrollback: Int = 5000,
+                pendingInput: (id: UUID, text: String)? = nil,
+                onTitle: @escaping (String) -> Void = { _ in },
                 onExit: @escaping (Int32?) -> Void = { _ in }) {
         self.executable = executable
         args = arguments
@@ -58,11 +66,13 @@ public struct SSHTerminal: NSViewRepresentable {
         self.cursor = cursor
         self.scrollback = scrollback
         environment = [:]
+        self.pendingInput = pendingInput
+        self.onTitle = onTitle
         self.onExit = onExit
     }
 
     public func makeCoordinator() -> Coordinator {
-        Coordinator(onExit: onExit, tokenPath: environment["MACTERM_ASKPASS_TOKEN"])
+        Coordinator(onTitle: onTitle, onExit: onExit, tokenPath: environment["MACTERM_ASKPASS_TOKEN"])
     }
 
     public func makeNSView(context: Context) -> LocalProcessTerminalView {
@@ -84,7 +94,12 @@ public struct SSHTerminal: NSViewRepresentable {
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         if view.font != font { view.font = font }
         configure(view, coordinator: context.coordinator)
+        context.coordinator.onTitle = onTitle
         context.coordinator.onExit = onExit
+        if let input = pendingInput, context.coordinator.lastInputID != input.id {
+            context.coordinator.lastInputID = input.id
+            view.send(txt: input.text)
+        }
     }
 
     private func configure(_ view: LocalProcessTerminalView, coordinator: Coordinator) {
@@ -106,15 +121,22 @@ public struct SSHTerminal: NSViewRepresentable {
     public final class Coordinator: LocalProcessTerminalViewDelegate {
         var cursor: TerminalCursor?
         var scrollback: Int?
+        var lastInputID: UUID?
+        var onTitle: (String) -> Void
         var onExit: (Int32?) -> Void
         private let tokenPath: String?
-        init(onExit: @escaping (Int32?) -> Void, tokenPath: String?) {
+        init(onTitle: @escaping (String) -> Void, onExit: @escaping (Int32?) -> Void, tokenPath: String?) {
+            self.onTitle = onTitle
             self.onExit = onExit
             self.tokenPath = tokenPath
         }
 
         public func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
-        public func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
+        public func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            DispatchQueue.main.async { self.onTitle(trimmed) }
+        }
         public func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         public func processTerminated(source: TerminalView, exitCode: Int32?) {
             if let tokenPath { try? FileManager.default.removeItem(atPath: tokenPath) }

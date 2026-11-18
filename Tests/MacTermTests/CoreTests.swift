@@ -101,9 +101,32 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(savedTunnels, [tunnel])
         let saved = try await store.hosts()
         XCTAssertEqual(saved, [host])
+
+        try await store.recordCommand("uptime", for: host.id, at: Date(timeIntervalSince1970: 10))
+        try await store.recordCommand("df -h", for: host.id, at: Date(timeIntervalSince1970: 20))
+        try await store.recordCommand("uptime", for: host.id, at: Date(timeIntervalSince1970: 30))
+        do {
+            try await store.recordCommand("bad\ncommand", for: host.id)
+            XCTFail("Multiline or control-character command should be rejected")
+        } catch {}
+        let history = try await store.commandHistory(for: host.id)
+        XCTAssertEqual(history.map(\.command), ["uptime", "df -h"])
+
+        let transfer = TransferRecord(name: "file.bin", state: "已完成",
+                                      job: TransferJob(host: host, local: URL(fileURLWithPath: "/tmp/file.bin"),
+                                                       remote: "/tmp/file.bin", upload: true, overwrite: true))
+        try await store.save(transfer)
+        let savedTransfers = try await store.transfers()
+        XCTAssertEqual(savedTransfers.first?.job?.overwrite, true)
+        try await store.deleteTransfer(transfer.id)
+        let remainingTransfers = try await store.transfers()
+        XCTAssertTrue(remainingTransfers.isEmpty)
+
         try await store.delete(host.id)
         let remainingTunnels = try await store.tunnels(hostID: host.id)
         XCTAssertTrue(remainingTunnels.isEmpty)
+        let remainingCommands = try await store.commandHistory(for: host.id)
+        XCTAssertTrue(remainingCommands.isEmpty)
         let deleted = try await store.hosts()
         XCTAssertTrue(deleted.isEmpty)
     }

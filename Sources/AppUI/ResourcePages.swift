@@ -22,7 +22,9 @@ struct ContainerPage: View {
     let client = ContainerClient()
     @State private var engine: ContainerEngine?
     @State private var output = ""
+    @State private var detectedTargets: [String] = []
     @State private var target = ""
+    @State private var shellPath = "/bin/sh"
     @State private var kind: Kind = .container
     @State private var busy = false
     @State private var removing: Removal?
@@ -33,26 +35,49 @@ struct ContainerPage: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Picker("资源", selection: $kind) {
                     ForEach(Kind.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }.pickerStyle(.segmented)
-                Button("刷新") { refresh() }
-                Button("资源统计") { run(["stats", "--no-stream"]) }
+                Button("刷新", systemImage: "arrow.clockwise") { refresh() }
+                Button("资源统计", systemImage: "chart.bar") { run(["stats", "--no-stream"]) }
                 if busy { ProgressView().controlSize(.small) }
-                Text(engine?.rawValue ?? host.label).foregroundStyle(.secondary)
+                Spacer()
+                Text(engine?.rawValue ?? host.label)
+                    .font(.caption.monospaced())
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(.quaternary, in: Capsule())
             }.disabled(busy)
+            if !detectedTargets.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Text("快捷选择：").font(.caption).foregroundStyle(.secondary)
+                        ForEach(detectedTargets, id: \.self) { item in
+                            Button(item) { target = item }
+                                .font(.system(.caption, design: .monospaced))
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(target == item ? Color.blue.opacity(0.18) : Color.secondary.opacity(0.1),
+                                            in: Capsule())
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
+            }
             HStack {
                 TextField(kind.rawValue + "名称或 ID", text: $target)
                 switch kind {
                 case .container:
-                    Button("启动") { run(["start", target]) }
-                    Button("停止") { run(["stop", target]) }
-                    Button("重启") { run(["restart", target]) }
+                    Button("启动") { run(["start", target], refreshAfter: true) }
+                    Button("停止") { run(["stop", target], refreshAfter: true) }
+                    Button("重启") { run(["restart", target], refreshAfter: true) }
                     Button("日志") { run(["logs", "--tail", "200", target], includeStderr: true) }
+                    Picker("Shell", selection: $shellPath) {
+                        Text("/bin/sh").tag("/bin/sh")
+                        Text("/bin/bash").tag("/bin/bash")
+                    }.labelsHidden().fixedSize()
                     Button("终端") {
-                        if let engine { openTerminal([engine.rawValue, "exec", "-it", target, "/bin/sh"], target) }
+                        if let engine { openTerminal([engine.rawValue, "exec", "-it", target, shellPath], target) }
                     }.disabled(engine == nil)
                 case .image:
                     Button("拉取") { run(["pull", target], refreshAfter: true) }
@@ -64,7 +89,7 @@ struct ContainerPage: View {
             CommandOutput(text: output)
         }
         .task { refresh() }
-        .onChange(of: kind) { _, _ in target = ""; refresh() }
+        .onChange(of: kind) { _, _ in target = ""; detectedTargets = []; refresh() }
         .confirmationDialog("删除资源？", isPresented: Binding(
             get: { removing != nil }, set: { if !$0 { removing = nil } }
         ), titleVisibility: .visible, presenting: removing) { item in
@@ -73,17 +98,51 @@ struct ContainerPage: View {
     }
 
     private var validTarget: Bool {
+        Self.isValidTarget(target, kind: kind)
+    }
+
+    private static func isValidTarget(_ value: String, kind: Kind) -> Bool {
         let pattern = kind == .image ? #"^[a-zA-Z0-9][a-zA-Z0-9_.:/@-]*\z"# : #"^[a-zA-Z0-9][a-zA-Z0-9_.-]*\z"#
-        return target.range(of: pattern, options: .regularExpression) != nil
+        return value.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func parseTargets(from text: String, kind: Kind) -> [String] {
+        let lines = text.split(whereSeparator: \.isNewline).dropFirst()
+        var items: [String] = []
+        for line in lines {
+            let cols = line.split(whereSeparator: \.isWhitespace).map(String.init)
+            guard !cols.isEmpty else { continue }
+            let candidate: String
+            switch kind {
+            case .container:
+                if let last = cols.last, isValidTarget(last, kind: .container) { candidate = last }
+                else { candidate = cols[0] }
+            case .image:
+                if cols.count >= 2, cols[0] != "<none>", cols[1] != "<none>" {
+                    candidate = "\(cols[0]):\(cols[1])"
+                } else if cols.count >= 3 {
+                    candidate = cols[2]
+                } else {
+                    candidate = cols[0]
+                }
+            case .network, .volume:
+                candidate = cols.count >= 2 ? cols[1] : cols[0]
+            }
+            if isValidTarget(candidate, kind: kind), !items.contains(candidate) {
+                items.append(candidate)
+            }
+        }
+        return items
     }
 
     private var listArguments: [String] { kind == .container ? ["ps", "-a"] : [kind.cli, "ls"] }
 
-    private func refresh() { run(listArguments) }
+    private func refresh() { run(listArguments, isListing: true) }
 
-    private func run(_ args: [String], refreshAfter: Bool = false, includeStderr: Bool = false) {
+    private func run(_ args: [String], refreshAfter: Bool = false, includeStderr: Bool = false, isListing: Bool = false) {
         guard !busy else { return }
         busy = true
+        let currentKind = kind
         let listing = listArguments
         Task {
             defer { busy = false }
@@ -93,8 +152,12 @@ struct ContainerPage: View {
                 else { detected = try await client.detect(on: host) }
                 engine = detected
                 var result = try await client.execute(args, engine: detected, on: host, includeStderr: includeStderr)
-                if refreshAfter {
-                    result += "\n" + (try await client.execute(listing, engine: detected, on: host))
+                if isListing {
+                    detectedTargets = Self.parseTargets(from: result, kind: currentKind)
+                } else if refreshAfter {
+                    let latestList = try await client.execute(listing, engine: detected, on: host)
+                    detectedTargets = Self.parseTargets(from: latestList, kind: currentKind)
+                    result += "\n" + latestList
                 }
                 output = result
             } catch { output = error.localizedDescription }
@@ -111,6 +174,7 @@ struct KubernetesPage: View {
     @State private var namespace = "default"
     @State private var namespaceItems: [String] = []
     @State private var resource: Resource = .pods
+    @State private var detectedNames: [String] = []
     @State private var output = ""
     @State private var busy = false
     @State private var target = ""
@@ -120,7 +184,7 @@ struct KubernetesPage: View {
     @State private var picking = false
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 10) {
             TextField("kubectl 绝对路径", text: $binary)
             HStack {
                 TextField("已授权 kubeconfig 的绝对路径", text: $config)
@@ -154,11 +218,23 @@ struct KubernetesPage: View {
                 Picker("资源", selection: $resource) {
                     ForEach(Resource.allCases) { Text($0.rawValue).tag($0) }
                 }.fixedSize()
-                Button("查询") {
-                    let selected = resource, context = context, namespace = namespace
-                    request { try await $0.list(selected, context: context, namespace: namespace) }
-                }.disabled(!canQuery)
+                Button("查询", systemImage: "magnifyingglass") { queryResource() }.disabled(!canQuery)
                 if busy { ProgressView().controlSize(.small) }
+            }
+            if (resource == .pods || resource == .deployments), !detectedNames.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Text("快捷选择：").font(.caption).foregroundStyle(.secondary)
+                        ForEach(detectedNames, id: \.self) { name in
+                            Button(name) { target = name }
+                                .font(.system(.caption, design: .monospaced))
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(target == name ? Color.blue.opacity(0.18) : Color.secondary.opacity(0.1),
+                                            in: Capsule())
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
             }
             if resource == .pods || resource == .deployments {
                 HStack {
@@ -174,24 +250,55 @@ struct KubernetesPage: View {
                         TextField("副本数", value: $replicas, format: .number.grouping(.never)).frame(width: 90)
                         Button("扩缩容") { confirmScale = true }
                     }
-                }.disabled(!canQuery)
+                }.disabled(!canQuery || target.isEmpty)
             }
             CommandOutput(text: output)
         }
-        .onChange(of: context) { _, _ in namespaceItems = []; target = "" }
-        .onChange(of: config) { _, _ in contexts = []; namespaceItems = []; context = "" }
+        .onChange(of: context) { _, _ in namespaceItems = []; detectedNames = []; target = "" }
+        .onChange(of: config) { _, _ in contexts = []; namespaceItems = []; detectedNames = []; context = "" }
+        .onChange(of: resource) { _, _ in
+            detectedNames = []
+            target = ""
+            if canQuery { queryResource() }
+        }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.item]) {
             if case .success(let url) = $0 { config = url.path }
         }
         .confirmationDialog("将 \(target) 调整为 \(replicas) 个副本？", isPresented: $confirmScale, titleVisibility: .visible) {
             Button("确认扩缩容") {
-                let name = target, count = replicas, context = context, namespace = namespace
-                request { try await $0.scale(deployment: name, replicas: count, context: context, namespace: namespace) }
+                let name = target, count = replicas, context = context, namespace = namespace, selected = resource
+                request { client in
+                    let scaled = try await client.scale(deployment: name, replicas: count, context: context, namespace: namespace)
+                    let listed = try await client.list(selected, context: context, namespace: namespace)
+                    detectedNames = Self.parseResourceNames(from: listed)
+                    return scaled + "\n" + listed
+                }
             }
         }
     }
 
     private var canQuery: Bool { !busy && !config.isEmpty && !context.isEmpty }
+
+    private func queryResource() {
+        let selected = resource, context = context, namespace = namespace
+        request { client in
+            let text = try await client.list(selected, context: context, namespace: namespace)
+            detectedNames = Self.parseResourceNames(from: text)
+            return text
+        }
+    }
+
+    private static func parseResourceNames(from text: String) -> [String] {
+        let lines = text.split(whereSeparator: \.isNewline).dropFirst()
+        var names: [String] = []
+        for line in lines {
+            guard let first = line.split(whereSeparator: \.isWhitespace).first.map(String.init),
+                  first.range(of: #"^[a-z0-9][a-z0-9.-]*\z"#, options: .regularExpression) != nil,
+                  !names.contains(first) else { continue }
+            names.append(first)
+        }
+        return names
+    }
 
     private func loadContexts() {
         request { client in

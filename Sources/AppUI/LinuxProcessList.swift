@@ -35,6 +35,7 @@ struct LinuxProcessList: View {
             }
             if !failure.isEmpty { Text(failure).foregroundStyle(.red) }
         }
+        .task(id: host.id) { await refresh() }
         .confirmationDialog("向该进程发送 SIGTERM？", isPresented: Binding(
             get: { confirming != nil }, set: { if !$0 { confirming = nil } }
         ), titleVisibility: .visible, presenting: confirming) { process in

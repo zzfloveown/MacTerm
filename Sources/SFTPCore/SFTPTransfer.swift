@@ -10,25 +10,56 @@ public struct TransferProgress: Sendable {
 extension SFTPClient {
     /// 使用独占的临时文件，恢复前逐块校验已有内容，完整传输后再发布目标文件。
     public func transfer(local: URL, remote: String, on host: SSHHost, upload: Bool, id: UUID,
+                         overwrite: Bool = false,
                          progress: @escaping @Sendable (TransferProgress) -> Void) async throws {
         try Self.validateProtocolPath(remote)
         try await withChannel(host) { channel in
             let suffix = ".macterm-" + id.uuidString.lowercased() + ".part"
             if upload {
-                try channel.upload(local, to: remote, partial: remote + suffix, progress: progress)
+                try channel.upload(local, to: remote, partial: remote + suffix, overwrite: overwrite, progress: progress)
             } else {
                 try channel.download(remote, to: local, partial: local.appendingPathExtension(String(suffix.dropFirst())),
-                                     progress: progress)
+                                     overwrite: overwrite, progress: progress)
             }
+        }
+    }
+
+    /// 清理已取消或失败任务留下的任务级 `.part` 临时文件。
+    public func removePartial(local: URL, remote: String, on host: SSHHost, upload: Bool, id: UUID) async throws {
+        let suffix = ".macterm-" + id.uuidString.lowercased() + ".part"
+        if upload {
+            let partial = remote + suffix
+            try Self.validateProtocolPath(partial)
+            try await withChannel(host) { channel in
+                guard let attrs = try channel.remoteAttributes(partial) else { return }
+                _ = try channel.regularSize(attrs)
+                _ = try channel.request(13, payload: channel.pathField(partial), expecting: 101)
+            }
+        } else {
+            let partial = local.appendingPathExtension(String(suffix.dropFirst()))
+            var info = stat()
+            let exists = partial.withUnsafeFileSystemRepresentation { pointer -> Bool in
+                guard let pointer else { return false }
+                return Darwin.lstat(pointer, &info) == 0
+            }
+            guard exists else { return }
+            guard UInt32(info.st_mode) & UInt32(S_IFMT) == UInt32(S_IFREG) else {
+                throw ResumeError.notFile
+            }
+            try FileManager.default.removeItem(at: partial)
         }
     }
 }
 
 extension SFTPChannel {
-    func upload(_ path: URL, to final: String, partial: String,
+    func upload(_ path: URL, to final: String, partial: String, overwrite: Bool,
                 progress: (TransferProgress) -> Void) throws {
         let current = try localAttributes(path)
-        try requireAbsent(final)
+        if overwrite {
+            if let existing = try remoteAttributes(final) { _ = try regularSize(existing) }
+        } else {
+            try requireAbsent(final)
+        }
         let file = try FileHandle(forReadingFrom: path)
         defer { try? file.close() }
         let prior = try remoteAttributes(partial)
@@ -55,14 +86,24 @@ extension SFTPChannel {
               try localAttributes(path) == current else { throw ResumeError.changed }
         try close(handle)
         closed = true
-        try requireAbsent(final)
-        _ = try request(18, payload: pathField(partial) + pathField(final), expecting: 101)
+        if overwrite {
+            if let existing = try remoteAttributes(final) { _ = try regularSize(existing) }
+            let operation = Data.field(Data("posix-rename@openssh.com".utf8)) + pathField(partial) + pathField(final)
+            _ = try request(200, payload: operation, expecting: 101)
+        } else {
+            try requireAbsent(final)
+            _ = try request(18, payload: pathField(partial) + pathField(final), expecting: 101)
+        }
     }
 
-    func download(_ path: String, to final: URL, partial: URL,
+    func download(_ path: String, to final: URL, partial: URL, overwrite: Bool,
                   progress: (TransferProgress) -> Void) throws {
         let manager = FileManager.default
-        guard !manager.fileExists(atPath: final.path) else { throw ResumeError.exists }
+        if overwrite {
+            try ensureOverwritableLocalFile(final)
+        } else {
+            guard !manager.fileExists(atPath: final.path) else { throw ResumeError.exists }
+        }
         guard let current = try remoteAttributes(path) else { throw SFTPDirectoryError.status(2) }
         let size = try regularSize(current)
         let handle = try open(path, flags: 1)
@@ -70,7 +111,8 @@ extension SFTPChannel {
         let snapshot = try attributes(handle, kind: 8)
         guard try regularSize(snapshot) == size, snapshot.modified == current.modified else { throw ResumeError.changed }
         let file = try openLocalPartial(partial)
-        defer { try? file.close() }
+        var localClosed = false
+        defer { if !localClosed { try? file.close() } }
         let temporarySize = try file.seekToEnd()
         guard temporarySize <= size else { throw ResumeError.changed }
         try file.seek(toOffset: 0)
@@ -89,9 +131,34 @@ extension SFTPChannel {
         let updated = try attributes(handle, kind: 8)
         guard try regularSize(updated) == size, updated.modified == snapshot.modified else { throw ResumeError.changed }
         try file.synchronize()
-        // link 在同一目录原子发布，并拒绝覆盖已存在的目标。
-        try manager.linkItem(at: partial, to: final)
-        try? manager.removeItem(at: partial)
+        try file.close()
+        localClosed = true
+        if overwrite {
+            try ensureOverwritableLocalFile(final)
+            let renamed = partial.withUnsafeFileSystemRepresentation { src in
+                final.withUnsafeFileSystemRepresentation { dst in
+                    guard let src, let dst else { return Int32(-1) }
+                    return Darwin.rename(src, dst)
+                }
+            }
+            guard renamed == 0 else { throw ResumeError.notFile }
+        } else {
+            // link 在同一目录原子发布，并拒绝覆盖已存在的目标。
+            try manager.linkItem(at: partial, to: final)
+            try? manager.removeItem(at: partial)
+        }
+    }
+
+    func ensureOverwritableLocalFile(_ path: URL) throws {
+        var info = stat()
+        let exists = path.withUnsafeFileSystemRepresentation { pointer -> Bool in
+            guard let pointer else { return false }
+            return Darwin.lstat(pointer, &info) == 0
+        }
+        guard exists else { return }
+        guard UInt32(info.st_mode) & UInt32(S_IFMT) == UInt32(S_IFREG) else {
+            throw ResumeError.notFile
+        }
     }
 
     func pathField(_ value: String) -> Data { Data.field(Data(value.utf8)) }

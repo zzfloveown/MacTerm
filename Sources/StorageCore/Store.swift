@@ -19,17 +19,46 @@ public struct TransferRecord: Codable, Identifiable, Sendable {
     }
 }
 
-public struct TransferJob: Codable, Sendable {
+public struct TransferJob: Codable, Equatable, Sendable {
     public let host: SSHHost
     public let local: URL
     public let remote: String
     public let upload: Bool
+    public var overwrite: Bool
 
-    public init(host: SSHHost, local: URL, remote: String, upload: Bool) {
+    public init(host: SSHHost, local: URL, remote: String, upload: Bool, overwrite: Bool = false) {
         self.host = host
         self.local = local
         self.remote = remote
         self.upload = upload
+        self.overwrite = overwrite
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case host, local, remote, upload, overwrite
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        host = try values.decode(SSHHost.self, forKey: .host)
+        local = try values.decode(URL.self, forKey: .local)
+        remote = try values.decode(String.self, forKey: .remote)
+        upload = try values.decode(Bool.self, forKey: .upload)
+        overwrite = try values.decodeIfPresent(Bool.self, forKey: .overwrite) ?? false
+    }
+}
+
+public struct TerminalCommandEntry: Codable, Identifiable, Equatable, Sendable {
+    public var id: UUID
+    public var hostID: UUID
+    public var command: String
+    public var createdAt: Date
+
+    public init(id: UUID = UUID(), hostID: UUID, command: String, createdAt: Date = Date()) {
+        self.id = id
+        self.hostID = hostID
+        self.command = command
+        self.createdAt = createdAt
     }
 }
 
@@ -79,6 +108,17 @@ public actor Store {
                     payload BLOB NOT NULL
                 );
                 CREATE INDEX ssh_tunnels_host ON ssh_tunnels(host_id);
+                """)
+        }
+        migrator.registerMigration("terminalCommandHistory") { db in
+            try db.execute(sql: """
+                CREATE TABLE terminal_commands (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    host_id TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    payload BLOB NOT NULL
+                );
+                CREATE INDEX terminal_commands_host ON terminal_commands(host_id, created_at);
                 """)
         }
         try migrator.migrate(queue)
@@ -132,6 +172,7 @@ public actor Store {
     public func delete(_ id: UUID) throws {
         try queue.write { db in
             try db.execute(sql: "DELETE FROM ssh_tunnels WHERE host_id = ?", arguments: [id.uuidString])
+            try db.execute(sql: "DELETE FROM terminal_commands WHERE host_id = ?", arguments: [id.uuidString])
             try db.execute(sql: "DELETE FROM monitor_history WHERE host_id = ?", arguments: [id.uuidString])
             try db.execute(sql: "DELETE FROM monitor_alert_rules WHERE host_id = ?", arguments: [id.uuidString])
             try db.execute(sql: "DELETE FROM monitor_alert_events WHERE host_id = ?", arguments: [id.uuidString])
@@ -189,6 +230,68 @@ public actor Store {
         try queue.read { db in
             try Data.fetchAll(db, sql: "SELECT payload FROM transfer_tasks ORDER BY created_at DESC")
                 .map { try JSONDecoder().decode(TransferRecord.self, from: $0) }
+        }
+    }
+
+    public func deleteTransfer(_ id: UUID) throws {
+        try deleteTransfers([id])
+    }
+
+    public func deleteTransfers(_ ids: [UUID]) throws {
+        guard !ids.isEmpty else { return }
+        try queue.write { db in
+            for id in ids {
+                try db.execute(sql: "DELETE FROM transfer_tasks WHERE id = ?", arguments: [id.uuidString])
+            }
+        }
+    }
+
+    /// 仅保存用户在终端工具栏显式发送的单行无控制字符命令，不记录凭据或命令输出。
+    public func recordCommand(_ command: String, for hostID: UUID, at date: Date = Date()) throws {
+        let trimmed = command.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed.count <= 512,
+              !trimmed.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+            throw MacTermError("快捷命令需为不超过 512 个字符的非空单行文本。")
+        }
+        try queue.write { db in
+            let existing = try Data.fetchAll(db, sql: """
+                SELECT payload FROM terminal_commands WHERE host_id = ? ORDER BY created_at DESC
+                """, arguments: [hostID.uuidString])
+                .map { try JSONDecoder().decode(TerminalCommandEntry.self, from: $0) }
+            for item in existing where item.command == trimmed {
+                try db.execute(sql: "DELETE FROM terminal_commands WHERE id = ?", arguments: [item.id.uuidString])
+            }
+            let entry = TerminalCommandEntry(hostID: hostID, command: trimmed, createdAt: date)
+            let payload = try JSONEncoder().encode(entry)
+            try db.execute(sql: "INSERT INTO terminal_commands VALUES (?, ?, ?, ?)",
+                           arguments: [entry.id.uuidString, hostID.uuidString, date.timeIntervalSince1970, payload])
+            try db.execute(sql: """
+                DELETE FROM terminal_commands
+                WHERE host_id = ? AND id NOT IN (
+                    SELECT id FROM terminal_commands WHERE host_id = ? ORDER BY created_at DESC LIMIT 100
+                )
+                """, arguments: [hostID.uuidString, hostID.uuidString])
+        }
+    }
+
+    public func commandHistory(for hostID: UUID) throws -> [TerminalCommandEntry] {
+        try queue.read { db in
+            try Data.fetchAll(db, sql: """
+                SELECT payload FROM terminal_commands WHERE host_id = ? ORDER BY created_at DESC
+                """, arguments: [hostID.uuidString])
+                .map { try JSONDecoder().decode(TerminalCommandEntry.self, from: $0) }
+        }
+    }
+
+    public func deleteCommand(_ id: UUID) throws {
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM terminal_commands WHERE id = ?", arguments: [id.uuidString])
+        }
+    }
+
+    public func clearCommandHistory(for hostID: UUID) throws {
+        try queue.write { db in
+            try db.execute(sql: "DELETE FROM terminal_commands WHERE host_id = ?", arguments: [hostID.uuidString])
         }
     }
 }

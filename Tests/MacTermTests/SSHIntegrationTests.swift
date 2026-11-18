@@ -139,6 +139,29 @@ final class SSHIntegrationTests: XCTestCase {
         try data.prefix(100).write(to: localPartial)
         try await sftp.transfer(local: resumedDownload, remote: resumed, on: host, upload: false, id: downloadID) { _ in }
         XCTAssertEqual(try Data(contentsOf: resumedDownload), data)
+
+        let replacementSource = URL(fileURLWithPath: fixture + "/replacement-source")
+        let replacementData = Data("overwritten-payload".utf8)
+        try replacementData.write(to: replacementSource)
+        do {
+            try await sftp.transfer(local: replacementSource, remote: resumed, on: host, upload: true, id: UUID(), overwrite: false) { _ in }
+            XCTFail("Upload without overwrite should reject existing destination")
+        } catch {}
+        try await sftp.transfer(local: replacementSource, remote: resumed, on: host, upload: true, id: UUID(), overwrite: true) { _ in }
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: resumed)), replacementData)
+
+        do {
+            try await sftp.transfer(local: resumedDownload, remote: resumed, on: host, upload: false, id: UUID(), overwrite: false) { _ in }
+            XCTFail("Download without overwrite should reject existing destination")
+        } catch {}
+        try await sftp.transfer(local: resumedDownload, remote: resumed, on: host, upload: false, id: UUID(), overwrite: true) { _ in }
+        XCTAssertEqual(try Data(contentsOf: resumedDownload), replacementData)
+
+        let cleanupID = UUID()
+        let orphanRemotePartial = resumed + ".macterm-" + cleanupID.uuidString.lowercased() + ".part"
+        try Data([1, 2, 3]).write(to: URL(fileURLWithPath: orphanRemotePartial))
+        try await sftp.removePartial(local: replacementSource, remote: resumed, on: host, upload: true, id: cleanupID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanRemotePartial))
         let textPath = folder + "/edit.txt"
         try Data("原文".utf8).write(to: URL(fileURLWithPath: textPath))
         let originalText = try await sftp.readText(at: textPath, on: host)

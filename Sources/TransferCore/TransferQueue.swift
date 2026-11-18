@@ -69,6 +69,34 @@ public final class TransferQueue: ObservableObject {
         catch { failure = error.localizedDescription }
     }
 
+    public func remove(_ id: UUID, cleanPartial: Bool = false) async {
+        guard tasks[id] == nil, stopStates[id] == nil,
+              let item = records.first(where: { $0.id == id }),
+              ["已完成", "已取消", "失败"].contains(item.state) else { return }
+        stopStates[id] = item.state
+        defer { stopStates[id] = nil }
+        do {
+            if cleanPartial, let job = item.job {
+                try await client.removePartial(local: job.local, remote: job.remote, on: job.host,
+                                               upload: job.upload, id: id)
+            }
+            try await store.deleteTransfer(id)
+            records.removeAll { $0.id == id }
+            failure = ""
+        } catch { failure = error.localizedDescription }
+    }
+
+    public func clearCompleted() async {
+        let completed = records.filter { $0.state == "已完成" && tasks[$0.id] == nil && stopStates[$0.id] == nil }.map(\.id)
+        guard !completed.isEmpty else { return }
+        do {
+            try await store.deleteTransfers(completed)
+            let removed = Set(completed)
+            records.removeAll { removed.contains($0.id) }
+            failure = ""
+        } catch { failure = error.localizedDescription }
+    }
+
     private func stop(_ id: UUID, state: String) async {
         if let task = tasks[id] {
             stopStates[id] = state
@@ -112,7 +140,8 @@ public final class TransferQueue: ObservableObject {
             try await update(id, state: "进行中")
             try Task.checkCancellation()
             let reporter = ProgressReporter()
-            try await client.transfer(local: job.local, remote: job.remote, on: job.host, upload: job.upload, id: id) { value in
+            try await client.transfer(local: job.local, remote: job.remote, on: job.host,
+                                      upload: job.upload, id: id, overwrite: job.overwrite) { value in
                 guard let rate = reporter.measure(value) else { return }
                 Task { @MainActor [weak self] in
                     if self?.tasks[id] != nil {

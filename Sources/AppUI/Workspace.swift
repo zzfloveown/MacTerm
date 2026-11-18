@@ -85,12 +85,28 @@ public struct Workspace: View {
                                 section = .hosts
                             } label: {
                                 Label(item.label, systemImage: item.id == hostID ? "checkmark.circle.fill" : "server.rack")
-                            }.buttonStyle(.plain)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("连接终端") { hostID = item.id; connect(item) }
+                                Button("打开 SFTP 文件") { hostID = item.id; section = .files }
+                                Button("服务器监控") { hostID = item.id; section = .monitor }
+                                Button("Docker 管理") { hostID = item.id; section = .docker }
+                                Button("SSH 隧道") { hostID = item.id; section = .tunnels }
+                                Button("密钥管理") { hostID = item.id; section = .keys }
+                                Divider()
+                                Button("复制连接地址") {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString("\(item.user)@\(item.address):\(item.port)", forType: .string)
+                                }
+                                Button("编辑服务器") { editing = item }
+                            }
                         }
                     }
                 }
             }.navigationSplitViewColumnWidth(min: 190, ideal: 220)
         } detail: {
+            let activeTransfers = transfers.records.filter { ["待传输", "进行中", "已暂停"].contains($0.state) }.count
             VStack(spacing: 0) {
                 ZStack {
                     if section != .terminal && section != .tunnels && section != .files { page.padding() }
@@ -98,20 +114,33 @@ public struct Workspace: View {
                         .opacity(section == .files ? 1 : 0)
                         .allowsHitTesting(section == .files)
                         .accessibilityHidden(section != .files)
-                    TunnelPage(host: host, store: store).id(host?.id)
+                    TunnelPage(host: host, store: store)
                         .opacity(section == .tunnels ? 1 : 0)
                         .allowsHitTesting(section == .tunnels)
                         .accessibilityHidden(section != .tunnels)
-                    TerminalWorkspace(sessions: $sessions, current: $current, split: $split, fontSize: fontSize)
+                    TerminalWorkspace(store: store, selectedHost: host, sessions: $sessions,
+                                      current: $current, split: $split, fontSize: fontSize)
                         .opacity(section == .terminal ? 1 : 0)
                         .allowsHitTesting(section == .terminal)
                         .accessibilityHidden(section != .terminal)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
-                HStack {
-                    Label(host?.label ?? "未选择服务器", systemImage: "server.rack")
+                HStack(spacing: 16) {
+                    Label(host.map { "\($0.label) (\($0.user)@\($0.address):\($0.port))" } ?? "未选择服务器",
+                          systemImage: "server.rack")
                     Spacer()
-                    Text("\(sessions.count) 个终端标签")
+                    if activeTransfers > 0 {
+                        Button {
+                            section = .transfers
+                        } label: {
+                            Label("\(activeTransfers) 项传输中", systemImage: "arrow.up.arrow.down")
+                        }.buttonStyle(.plain)
+                    }
+                    Button {
+                        section = .terminal
+                    } label: {
+                        Text("\(sessions.count) 个终端标签")
+                    }.buttonStyle(.plain)
                 }.font(.caption).foregroundStyle(.secondary).padding(8)
             }
             .navigationTitle(section?.rawValue ?? "MacTerm")
@@ -161,6 +190,8 @@ public struct Workspace: View {
                           restorable: sessions.isEmpty && !restorableHosts.isEmpty,
                           onConnect: { hostID = $0.id; connect($0) },
                           onOpen: { selected, destination in hostID = selected.id; section = destination },
+                          onNavigate: { section = $0 },
+                          onEdit: { editing = $0 },
                           onRestore: restoreTerminals,
                           onAdd: { editing = SSHHost() })
         case .hosts:
@@ -273,6 +304,8 @@ private struct HostDetailsPage: View {
                     Button("服务器监控", systemImage: "waveform.path") { onOpen(.monitor) }
                     Button("Docker", systemImage: "shippingbox") { onOpen(.docker) }
                     Button("SSH 隧道", systemImage: "point.3.connected.trianglepath.dotted") { onOpen(.tunnels) }
+                    Button("密钥管理", systemImage: "key") { onOpen(.keys) }
+                    Button("告警中心", systemImage: "bell") { onOpen(.alerts) }
                 }.controlSize(.small)
             }
             SwiftUI.Section("连接配置") {
@@ -302,7 +335,7 @@ private struct HostDetailsPage: View {
         .confirmationDialog("移除此服务器配置？", isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button("确认移除", role: .destructive, action: onDelete)
         } message: {
-            Text("将一并删除该服务器的 Keychain 凭据、监控历史、告警规则和 SSH 隧道配置。")
+            Text("将一并删除该服务器的 Keychain 凭据、命令历史、监控历史、告警规则和 SSH 隧道配置。")
         }
     }
 }

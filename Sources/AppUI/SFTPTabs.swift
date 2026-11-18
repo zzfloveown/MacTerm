@@ -32,8 +32,17 @@ struct SFTPTabs: View {
                 }.disabled(selectedHost == nil)
             }
             if tabs.isEmpty {
-                ContentUnavailableView("打开 SFTP 连接", systemImage: "folder",
-                                       description: Text("在侧边栏选择服务器，然后新建文件标签。"))
+                ContentUnavailableView {
+                    Label("打开 SFTP 连接", systemImage: "folder")
+                } description: {
+                    Text(selectedHost.map { "可立即打开 \($0.label) 的双栏文件管理。" } ?? "在侧边栏选择服务器，然后新建文件标签。")
+                } actions: {
+                    if let selectedHost {
+                        Button("连接 \(selectedHost.label)", systemImage: "folder.badge.plus") {
+                            open(selectedHost)
+                        }.buttonStyle(.borderedProminent)
+                    }
+                }
             } else {
                 ZStack {
                     ForEach(tabs) { tab in
