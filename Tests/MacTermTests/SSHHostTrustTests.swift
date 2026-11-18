@@ -27,7 +27,7 @@ final class SSHHostTrustTests: XCTestCase {
     }
 
     func testHashedRecordsAndUnsafeRules() throws {
-        let lookup = "# Host example.invalid found: line 1\n"
+        let lookup = "# Host example.invalid found: line 1 \n"
         let hashed = Data("|1|salt|hash ssh-ed25519 OLD\nother.invalid ssh-ed25519 OTHER\n".utf8)
         let result = try SSHHostTrust.replacingTarget(in: hashed, lookup: lookup, target: "example.invalid", replacement: "")
         XCTAssertEqual(String(decoding: result, as: UTF8.self), "\nother.invalid ssh-ed25519 OTHER\n")
@@ -36,6 +36,9 @@ final class SSHHostTrustTests: XCTestCase {
             XCTAssertThrowsError(try SSHHostTrust.replacingTarget(in: Data(record.utf8), lookup: lookup,
                                                                  target: "example.invalid", replacement: ""))
         }
+        XCTAssertThrowsError(try SSHHostTrust.replacingTarget(
+            in: Data("@revoked example.invalid ssh-ed25519 OLD\n".utf8),
+            lookup: "# Host example.invalid found: line 1 REVOKED\n", target: "example.invalid", replacement: ""))
         XCTAssertThrowsError(try SSHHostTrust.replacingTarget(in: hashed, lookup: "", target: "example.invalid", replacement: ""))
     }
 

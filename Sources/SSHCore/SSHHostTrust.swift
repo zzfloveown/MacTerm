@@ -99,7 +99,7 @@ public enum SSHHostTrust {
     /// ssh-keygen -F 负责匹配散列主机名；只修改其报告的行，保留共享行中的其他别名。
     static func replacingTarget(in original: Data, lookup: String, target: String, replacement: String) throws -> Data {
         guard let text = String(data: original, encoding: .utf8) else { throw MacTermError("信任记录不是 UTF-8 文本。") }
-        let pattern = try NSRegularExpression(pattern: #"(?m)^# Host .* found: line ([0-9]+)\r?$"#)
+        let pattern = try NSRegularExpression(pattern: #"(?m)^# Host .* found: line ([0-9]+)(?:[ \t]+(?:CA|REVOKED))?[ \t]*\r?$"#)
         let matches = pattern.matches(in: lookup, range: NSRange(lookup.startIndex..., in: lookup))
         let indices = Set(matches.compactMap { match -> Int? in
             guard let range = Range(match.range(at: 1), in: lookup), let number = Int(lookup[range]) else { return nil }
